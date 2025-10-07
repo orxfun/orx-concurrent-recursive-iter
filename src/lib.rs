@@ -11,3 +11,18 @@
     clippy::todo
 )]
 #![no_std]
+
+#[cfg(test)]
+extern crate alloc;
+#[cfg(test)]
+extern crate std;
+
+#[cfg(test)]
+mod tests;
+
+mod chunk;
+mod chunk_puller;
+mod dyn_seq_queue;
+mod iter;
+
+pub use iter::ConcurrentRecursiveIter;
