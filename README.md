@@ -8,3 +8,11 @@ A concurrent iterator ([ConcurrentIter](https://docs.rs/orx-concurrent-iter/late
 
 > **no-std**: This is a **no-std** crate.
 
+
+## Contributing
+
+Contributions are welcome! If you notice an error, have a question or think something could be improved, please open an [issue](https://github.com/orxfun/orx-concurrent-recursive-iter/issues/new) or create a PR.
+
+## License
+
+Dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
