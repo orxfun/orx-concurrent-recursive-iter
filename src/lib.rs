@@ -22,7 +22,10 @@ mod tests;
 
 mod chunk;
 mod chunk_puller;
+mod con_iter;
 mod dyn_seq_queue;
-mod iter;
 
-pub use iter::ConcurrentRecursiveIter;
+pub use con_iter::ConcurrentRecursiveIter;
+
+// re-import
+pub use orx_concurrent_iter::*;
