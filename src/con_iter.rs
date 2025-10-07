@@ -1,28 +1,27 @@
+use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
 use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 use orx_split_vec::SplitVec;
 
-use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
-
-/// A dynamic [`ConcurrentIter`] which:
+/// A recursive [`ConcurrentIter`] which:
 /// * naturally shrinks as we iterate,
 /// * but can also grow as it allows to add new items to the iterator, during iteration.
 ///
-/// The growth part is managed by the `extend: E` function with the signature `Fn(&T) -> I`,
-/// where `I: IntoIterator<Item = T>`.
+/// Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I`,
+/// where `I: IntoIterator<Item = T>` with a known length.
 ///
-/// In other words, for each element `e` drawn from the iterator, we call `extend(&e)` before
+/// In other words, for each element `e` pulled from the iterator, we call `extend(&e)` before
 /// returning it to the caller. All elements included in the iterator that `extend` returned
-/// are added to the end of the concurrent iterator, to be yield later on.
+/// are added to the end of the concurrent iterator, to be pulled later on.
 ///
-/// *The dynamic concurrent iterator internally uses a [`ConcurrentQueue`] which allows for concurrent
-/// push / extend simultaneously with pop / pull operations.*
+/// *The recursive concurrent iterator internally uses a [`ConcurrentQueue`] which allows for both
+/// concurrent push / extend and pop / pull operations.*
 ///
 /// # Example
 ///
-/// The following example demonstrates a use case for the dynamic concurrent iterator.
+/// The following example demonstrates a use case for the recursive concurrent iterator.
 /// Notice that the iterator is instantiated with:
 /// * a single element which is the root node,
 /// * and the extend method which defines how to extend the iterator from each node.
@@ -244,5 +243,32 @@ where
 
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
+    }
+}
+
+#[cfg(test)]
+mod tstst {
+    use std::dbg;
+
+    use crate::*;
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use orx_concurrent_iter::*;
+
+    #[test]
+    fn abc() {
+        let initial = [1, 2];
+        let extend = |x: &usize| (*x < 1000).then_some(x * 10);
+
+        let iter = ConcurrentRecursiveIter::new(extend, initial);
+
+        let mut collected = vec![];
+        while let Some(x) = iter.next() {
+            collected.push(x);
+        }
+
+        dbg!(&collected);
+
+        assert_eq!(collected, vec![1, 2, 10, 20, 100, 200, 1000, 2000,]);
     }
 }
