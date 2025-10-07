@@ -245,30 +245,3 @@ where
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
     }
 }
-
-#[cfg(test)]
-mod tstst {
-    use std::dbg;
-
-    use crate::*;
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use orx_concurrent_iter::*;
-
-    #[test]
-    fn abc() {
-        let initial = [1, 2];
-        let extend = |x: &usize| (*x < 1000).then_some(x * 10);
-
-        let iter = ConcurrentRecursiveIter::new(extend, initial);
-
-        let mut collected = vec![];
-        while let Some(x) = iter.next() {
-            collected.push(x);
-        }
-
-        dbg!(&collected);
-
-        assert_eq!(collected, vec![1, 2, 10, 20, 100, 200, 1000, 2000,]);
-    }
-}
