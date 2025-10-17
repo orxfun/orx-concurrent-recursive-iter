@@ -1,5 +1,5 @@
-use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
-use core::sync::atomic::Ordering;
+use crate::{Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
+use core::{marker::PhantomData, sync::atomic::Ordering};
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
@@ -94,8 +94,9 @@ use orx_split_vec::SplitVec;
 ///
 /// assert_eq!(num_processed_nodes.into_inner(), 177);
 /// ```
-pub struct ConcurrentRecursiveIter<T, E, I, P = DefaultConPinnedVec<T>>
+pub struct ConcurrentRecursiveIter<S, T, E, I, P = DefaultConPinnedVec<T>>
 where
+    S: Size,
     T: Send,
     E: Fn(&T) -> I + Sync,
     I: IntoIterator<Item = T>,
@@ -105,9 +106,12 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
+    initial_len: Option<usize>,
+    p: PhantomData<S>,
 }
 
-impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)> for ConcurrentRecursiveIter<T, E, I, P>
+impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)>
+    for ConcurrentRecursiveIter<UnknownSize, T, E, I, P>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -117,11 +121,16 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     fn from((extend, queue): (E, ConcurrentQueue<T, P>)) -> Self {
-        Self { queue, extend }
+        Self {
+            queue,
+            extend,
+            initial_len: None,
+            p: PhantomData,
+        }
     }
 }
 
-impl<T, E, I> ConcurrentRecursiveIter<T, E, I, DefaultConPinnedVec<T>>
+impl<T, E, I> ConcurrentRecursiveIter<UnknownSize, T, E, I, DefaultConPinnedVec<T>>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -185,12 +194,13 @@ where
         let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
         vec.extend(initial_elements);
         let queue = vec.into();
-        Self { queue, extend }
+        (extend, queue).into()
     }
 }
 
-impl<T, E, I, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, I, P>
+impl<S, T, E, I, P> ConcurrentIter for ConcurrentRecursiveIter<S, T, E, I, P>
 where
+    S: Size,
     T: Send,
     E: Fn(&T) -> I + Sync,
     I: IntoIterator<Item = T>,

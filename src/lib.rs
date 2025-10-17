@@ -27,7 +27,7 @@ mod dyn_seq_queue;
 mod sized;
 
 pub use con_iter::ConcurrentRecursiveIter;
-pub use sized::{ExactSized, Size, UnknownSized};
+pub use sized::{ExactSize, Size, UnknownSize};
 
 // re-import
 pub use orx_concurrent_iter::*;
