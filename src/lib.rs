@@ -26,7 +26,9 @@ mod con_iter;
 mod dyn_seq_queue;
 mod sized;
 
-pub use con_iter::ConcurrentRecursiveIter;
+pub use con_iter::{
+    ConcurrentRecursiveIter, ConcurrentRecursiveIterCore, ConcurrentRecursiveIterExact,
+};
 pub use sized::{ExactSize, Size, UnknownSize};
 
 // re-import

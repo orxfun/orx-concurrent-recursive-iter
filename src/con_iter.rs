@@ -7,6 +7,18 @@ use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 use orx_split_vec::SplitVec;
 
+// type aliases for exact an unknown
+
+/// A [`ConcurrentRecursiveIterCore`] with [`UnknownSize`].
+pub type ConcurrentRecursiveIter<T, E, I, P = DefaultConPinnedVec<T>> =
+    ConcurrentRecursiveIterCore<UnknownSize, T, E, I, P>;
+
+/// A [`ConcurrentRecursiveIterCore`] with [`ExactSize`].
+pub type ConcurrentRecursiveIterExact<T, E, I, P = DefaultConPinnedVec<T>> =
+    ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>;
+
+// core
+
 /// A recursive [`ConcurrentIter`] which:
 /// * naturally shrinks as we iterate,
 /// * but can also grow as it allows to add new items to the iterator, during iteration.
@@ -96,7 +108,7 @@ use orx_split_vec::SplitVec;
 ///
 /// assert_eq!(num_processed_nodes.into_inner(), 177);
 /// ```
-pub struct ConcurrentRecursiveIter<S, T, E, I, P = DefaultConPinnedVec<T>>
+pub struct ConcurrentRecursiveIterCore<S, T, E, I, P = DefaultConPinnedVec<T>>
 where
     S: Size,
     T: Send,
@@ -115,7 +127,7 @@ where
 // new with unknown size
 
 impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)>
-    for ConcurrentRecursiveIter<UnknownSize, T, E, I, P>
+    for ConcurrentRecursiveIterCore<UnknownSize, T, E, I, P>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -134,7 +146,7 @@ where
     }
 }
 
-impl<T, E, I> ConcurrentRecursiveIter<UnknownSize, T, E, I, DefaultConPinnedVec<T>>
+impl<T, E, I> ConcurrentRecursiveIterCore<UnknownSize, T, E, I, DefaultConPinnedVec<T>>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -239,7 +251,7 @@ where
 // new with exact size
 
 impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>, usize)>
-    for ConcurrentRecursiveIter<ExactSize, T, E, I, P>
+    for ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -258,7 +270,7 @@ where
     }
 }
 
-impl<T, E, I> ConcurrentRecursiveIter<ExactSize, T, E, I, DefaultConPinnedVec<T>>
+impl<T, E, I> ConcurrentRecursiveIterCore<ExactSize, T, E, I, DefaultConPinnedVec<T>>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -381,7 +393,7 @@ where
 
 // con iter
 
-impl<S, T, E, I, P> ConcurrentIter for ConcurrentRecursiveIter<S, T, E, I, P>
+impl<S, T, E, I, P> ConcurrentIter for ConcurrentRecursiveIterCore<S, T, E, I, P>
 where
     S: Size,
     T: Send,
@@ -439,7 +451,7 @@ where
     }
 }
 
-impl<T, E, I, P> ExactSizeConcurrentIter for ConcurrentRecursiveIter<ExactSize, T, E, I, P>
+impl<T, E, I, P> ExactSizeConcurrentIter for ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
