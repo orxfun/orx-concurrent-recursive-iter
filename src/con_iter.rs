@@ -120,7 +120,7 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
-    exact_len: S::ExactLen,
+    exact_len: S,
     p: PhantomData<S>,
 }
 
@@ -140,7 +140,7 @@ where
         Self {
             queue,
             extend,
-            exact_len: (),
+            exact_len: UnknownSize,
             p: PhantomData,
         }
     }
@@ -264,7 +264,7 @@ where
         Self {
             queue,
             extend,
-            exact_len,
+            exact_len: ExactSize(exact_len),
             p: PhantomData,
         }
     }
@@ -461,6 +461,6 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     fn len(&self) -> usize {
-        self.exact_len - self.queue.num_popped(Ordering::Relaxed)
+        self.exact_len.0 - self.queue.num_popped(Ordering::Relaxed)
     }
 }
