@@ -108,7 +108,7 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
-    exact_len: usize,
+    exact_len: S::ExactLen,
     p: PhantomData<S>,
 }
 
@@ -128,7 +128,7 @@ where
         Self {
             queue,
             extend,
-            exact_len: usize::MAX,
+            exact_len: (),
             p: PhantomData,
         }
     }
