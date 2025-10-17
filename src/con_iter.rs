@@ -183,7 +183,7 @@ where
     ///   when the recursive iterator is used as the input of a parallel iterator of the
     ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
     ///
-    /// [`new_exact`]: ConcurrentRecursiveIter::new_exact
+    /// [`new_exact`]: ConcurrentRecursiveIterExact::new_exact
     ///
     /// # Examples
     ///
@@ -319,7 +319,7 @@ where
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
     /// let initial_elements = [1];
     ///
-    /// let iter = ConcurrentRecursiveIter::new_exact(extend, initial_elements, 5);
+    /// let iter = ConcurrentRecursiveIterExact::new_exact(extend, initial_elements, 5);
     /// assert_eq!(iter.len(), 5);
     ///
     /// assert_eq!(iter.next(), Some(1));
@@ -360,7 +360,7 @@ where
     /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
     /// queue.extend(initial_elements);
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let iter = ConcurrentRecursiveIter::from((extend, queue, 5));
+    /// let iter = ConcurrentRecursiveIterExact::from((extend, queue, 5));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -369,7 +369,7 @@ where
     /// let queue = ConcurrentQueue::with_fixed_capacity(5);
     /// queue.extend(initial_elements);
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let iter = ConcurrentRecursiveIter::from((extend, queue, 5));
+    /// let iter = ConcurrentRecursiveIterExact::from((extend, queue, 5));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
