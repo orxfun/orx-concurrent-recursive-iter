@@ -225,9 +225,8 @@ dependencies = [
 
 [[package]]
 name = "orx-concurrent-queue"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f2b4b34509848c6089f1759829b5e910529ce2b081f7f4f6c79b4e7c7398567"
+version = "1.2.0"
+source = "git+https://github.com/orxfun/orx-concurrent-queue?branch=expose-num-popped#c4f150ab78fada8ae15b78652608066f2f49c839"
 dependencies = [
  "orx-fixed-vec",
  "orx-pinned-vec",
@@ -236,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "orx-concurrent-recursive-iter"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "criterion",
  "orx-concurrent-bag",

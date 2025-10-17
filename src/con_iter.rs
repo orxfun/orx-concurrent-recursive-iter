@@ -1,9 +1,23 @@
-use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
-use core::sync::atomic::Ordering;
-use orx_concurrent_iter::ConcurrentIter;
+use crate::{
+    ExactSize, Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue,
+};
+use core::{marker::PhantomData, sync::atomic::Ordering};
+use orx_concurrent_iter::{ConcurrentIter, ExactSizeConcurrentIter};
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 use orx_split_vec::SplitVec;
+
+// type aliases for exact an unknown
+
+/// A [`ConcurrentRecursiveIterCore`] with [`UnknownSize`].
+pub type ConcurrentRecursiveIter<T, E, I, P = DefaultConPinnedVec<T>> =
+    ConcurrentRecursiveIterCore<UnknownSize, T, E, I, P>;
+
+/// A [`ConcurrentRecursiveIterCore`] with [`ExactSize`].
+pub type ConcurrentRecursiveIterExact<T, E, I, P = DefaultConPinnedVec<T>> =
+    ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>;
+
+// core
 
 /// A recursive [`ConcurrentIter`] which:
 /// * naturally shrinks as we iterate,
@@ -94,8 +108,9 @@ use orx_split_vec::SplitVec;
 ///
 /// assert_eq!(num_processed_nodes.into_inner(), 177);
 /// ```
-pub struct ConcurrentRecursiveIter<T, E, I, P = DefaultConPinnedVec<T>>
+pub struct ConcurrentRecursiveIterCore<S, T, E, I, P = DefaultConPinnedVec<T>>
 where
+    S: Size,
     T: Send,
     E: Fn(&T) -> I + Sync,
     I: IntoIterator<Item = T>,
@@ -105,9 +120,14 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
+    exact_len: S,
+    p: PhantomData<S>,
 }
 
-impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)> for ConcurrentRecursiveIter<T, E, I, P>
+// new with unknown size
+
+impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)>
+    for ConcurrentRecursiveIterCore<UnknownSize, T, E, I, P>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -117,11 +137,16 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     fn from((extend, queue): (E, ConcurrentQueue<T, P>)) -> Self {
-        Self { queue, extend }
+        Self {
+            queue,
+            extend,
+            exact_len: UnknownSize,
+            p: PhantomData,
+        }
     }
 }
 
-impl<T, E, I> ConcurrentRecursiveIter<T, E, I, DefaultConPinnedVec<T>>
+impl<T, E, I> ConcurrentRecursiveIterCore<UnknownSize, T, E, I, DefaultConPinnedVec<T>>
 where
     T: Send,
     E: Fn(&T) -> I + Sync,
@@ -138,22 +163,31 @@ where
     /// collection under the hood. In order to crate the iterator using a different queue
     /// use the `From`/`Into` traits, as demonstrated below.
     ///
+    /// # UnknownSize vs ExactSize
+    ///
+    /// Size refers to the total number of elements that will be returned by the iterator,
+    /// which is the total of initial elements and all elements created by the recursive
+    /// extend calls.
+    ///
+    /// Note that the iterator created with this method will have [`UnknownSize`].
+    /// In order to create a recursive iterator with a known exact length, you may use
+    /// [`new_exact`] function.
+    ///
+    /// Providing an `exact_len` impacts the following:
+    /// * When an exact length is provided, the recursive iterator implements
+    ///   [`ExactSizeConcurrentIter`] in addition to [`ConcurrentIter`].
+    ///   This enables the `len` method to access the number of remaining elements in a
+    ///   concurrent program. When this is not necessary, the exact length argument
+    ///   can simply be skipped.
+    /// * On the other hand, a known length is very useful for performance optimization
+    ///   when the recursive iterator is used as the input of a parallel iterator of the
+    ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
+    ///
+    /// [`new_exact`]: ConcurrentRecursiveIterExact::new_exact
+    ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
-    ///
-    /// ```
-    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
-    /// use orx_concurrent_iter::ConcurrentIter;
-    ///
-    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let initial_elements = [1];
-    ///
-    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
-    /// let all: Vec<_> = iter.item_puller().collect();
-    ///
-    /// assert_eq!(all, [1, 2, 3, 4, 5]);
-    /// ```
     ///
     /// ```
     /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
@@ -177,6 +211,31 @@ where
     /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
     /// use the `From` trait.
     ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    /// use orx_concurrent_queue::ConcurrentQueue;
+    ///
+    /// let initial_elements = [1];
+    ///
+    /// // SplitVec with Linear growth
+    /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    ///
+    /// // FixedVec with fixed capacity
+    /// let queue = ConcurrentQueue::with_fixed_capacity(5);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
     /// [`SplitVec`]: orx_split_vec::SplitVec
     /// [`FixedVec`]: orx_fixed_vec::FixedVec
     /// [`Doubling`]: orx_split_vec::Doubling
@@ -185,12 +244,158 @@ where
         let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
         vec.extend(initial_elements);
         let queue = vec.into();
-        Self { queue, extend }
+        (extend, queue).into()
     }
 }
 
-impl<T, E, I, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, I, P>
+// new with exact size
+
+impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>, usize)>
+    for ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>
 where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+{
+    fn from((extend, queue, exact_len): (E, ConcurrentQueue<T, P>, usize)) -> Self {
+        Self {
+            queue,
+            extend,
+            exact_len: ExactSize(exact_len),
+            p: PhantomData,
+        }
+    }
+}
+
+impl<T, E, I> ConcurrentRecursiveIterCore<ExactSize, T, E, I, DefaultConPinnedVec<T>>
+where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+{
+    /// Creates a new dynamic concurrent iterator:
+    ///
+    /// * The iterator will initially contain `initial_elements`.
+    /// * Before yielding each element, say `e`, to the caller, the elements returned
+    ///   by `extend(&e)` will be added to the concurrent iterator, to be yield later.
+    ///
+    /// This constructor uses a [`ConcurrentQueue`] with the default pinned concurrent
+    /// collection under the hood. In order to crate the iterator using a different queue
+    /// use the `From`/`Into` traits, as demonstrated below.
+    ///
+    /// # UnknownSize vs ExactSize
+    ///
+    /// Size refers to the total number of elements that will be returned by the iterator,
+    /// which is the total of initial elements and all elements created by the recursive
+    /// extend calls.
+    ///
+    /// Note that the iterator created with this method will have [`ExactSize`].
+    /// In order to create a recursive iterator with an unknown length, you may use
+    /// [`new`] function.
+    ///
+    /// Providing an `exact_len` impacts the following:
+    /// * When an exact length is provided, the recursive iterator implements
+    ///   [`ExactSizeConcurrentIter`] in addition to [`ConcurrentIter`].
+    ///   This enables the `len` method to access the number of remaining elements in a
+    ///   concurrent program. When this is not necessary, the exact length argument
+    ///   can simply be skipped.
+    /// * On the other hand, a known length is very useful for performance optimization
+    ///   when the recursive iterator is used as the input of a parallel iterator of the
+    ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
+    ///
+    /// [`new`]: ConcurrentRecursiveIter::new
+    ///
+    /// # Examples
+    ///
+    /// The following is a simple example to demonstrate how the dynamic iterator works.
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    ///
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let initial_elements = [1];
+    ///
+    /// let iter = ConcurrentRecursiveIterExact::new_exact(extend, initial_elements, 5);
+    /// assert_eq!(iter.len(), 5);
+    ///
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.len(), 4);
+    ///
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.len(), 3);
+    ///
+    /// let remaining: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(remaining, [3, 4, 5]);
+    /// assert_eq!(iter.len(), 0);
+    ///
+    /// assert_eq!(iter.next(), None);
+    /// assert_eq!(iter.len(), 0);
+    /// ```
+    ///
+    /// # Examples - From
+    ///
+    /// In the above example, the underlying pinned vector of the dynamic iterator created
+    /// with `new` is a [`SplitVec`] with a [`Doubling`] growth strategy.
+    ///
+    /// Alternatively, we can use a `SplitVec` with a [`Linear`] growth strategy, or a
+    /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
+    /// use the `From` trait.
+    ///
+    /// Note that:
+    /// * `From<(Extend, ConcurrentQueue<T, P>)>` creates a recursive concurrent iter with
+    ///   [`UnknownSize`], while
+    /// * `From<(Extend, ConcurrentQueue<T, P>, usize)>` creates one with [`ExactSize`].
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    /// use orx_concurrent_queue::ConcurrentQueue;
+    ///
+    /// let initial_elements = [1];
+    ///
+    /// // SplitVec with Linear growth
+    /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIterExact::from((extend, queue, 5));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    ///
+    /// // FixedVec with fixed capacity
+    /// let queue = ConcurrentQueue::with_fixed_capacity(5);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIterExact::from((extend, queue, 5));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
+    /// [`SplitVec`]: orx_split_vec::SplitVec
+    /// [`FixedVec`]: orx_fixed_vec::FixedVec
+    /// [`Doubling`]: orx_split_vec::Doubling
+    /// [`Linear`]: orx_split_vec::Linear
+    pub fn new_exact(
+        extend: E,
+        initial_elements: impl IntoIterator<Item = T>,
+        exact_len: usize,
+    ) -> Self {
+        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        vec.extend(initial_elements);
+        let queue = vec.into();
+        (extend, queue, exact_len).into()
+    }
+}
+
+// con iter
+
+impl<S, T, E, I, P> ConcurrentIter for ConcurrentRecursiveIterCore<S, T, E, I, P>
+where
+    S: Size,
     T: Send,
     E: Fn(&T) -> I + Sync,
     I: IntoIterator<Item = T>,
@@ -234,14 +439,37 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let min = self.queue.len();
-        match min {
-            0 => (0, Some(0)),
-            n => (n, None),
+        match self.exact_len.exact_len() {
+            Some(exact_len) => {
+                let popped = self.queue.num_popped(Ordering::Relaxed);
+                let remaining = exact_len - popped;
+                (remaining, Some(remaining))
+            }
+            None => {
+                let min = self.queue.len();
+                match min {
+                    0 => (0, Some(0)),
+                    n => (n, None),
+                }
+            }
         }
     }
 
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
+    }
+}
+
+impl<T, E, I, P> ExactSizeConcurrentIter for ConcurrentRecursiveIterCore<ExactSize, T, E, I, P>
+where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+{
+    fn len(&self) -> usize {
+        self.exact_len.0 - self.queue.num_popped(Ordering::Relaxed)
     }
 }
