@@ -4,7 +4,7 @@ trait Seal {}
 #[allow(private_bounds)]
 pub trait Size: Seal + Send + Sync {
     /// Type of the exact length.
-    type ExactLen;
+    type ExactLen: Send + Sync;
 }
 
 /// The iterator has known exact size.
