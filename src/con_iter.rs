@@ -308,9 +308,20 @@ where
     /// let initial_elements = [1];
     ///
     /// let iter = ConcurrentRecursiveIter::new_exact(extend, initial_elements, 5);
-    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(iter.len(), 5);
     ///
-    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.len(), 4);
+    ///
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.len(), 3);
+    ///
+    /// let remaining: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(remaining, [3, 4, 5]);
+    /// assert_eq!(iter.len(), 0);
+    ///
+    /// assert_eq!(iter.next(), None);
+    /// assert_eq!(iter.len(), 0);
     /// ```
     ///
     /// # Examples - From
@@ -440,39 +451,4 @@ where
     fn len(&self) -> usize {
         self.exact_len - self.queue.num_popped(Ordering::Relaxed)
     }
-}
-
-#[test]
-fn abc() {
-    use alloc::vec::Vec;
-
-    let initial_elements = [1];
-
-    // SplitVec with Linear growth
-    let queue = ConcurrentQueue::with_linear_growth(10, 4);
-    queue.extend(initial_elements);
-    let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
-
-    let all: Vec<_> = iter.item_puller().collect();
-    assert_eq!(all, [1, 2, 3, 4, 5]);
-
-    // FixedVec with fixed capacity
-    let queue = ConcurrentQueue::with_fixed_capacity(5);
-    queue.extend(initial_elements);
-    let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
-
-    let all: Vec<_> = iter.item_puller().collect();
-    assert_eq!(all, [1, 2, 3, 4, 5]);
-
-    //
-
-    let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    let initial_elements = [1];
-
-    let iter = ConcurrentRecursiveIter::new_exact(extend, initial_elements, 5);
-    let all: Vec<_> = iter.item_puller().collect();
-
-    assert_eq!(all, [1, 2, 3, 4, 5]);
 }
