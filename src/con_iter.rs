@@ -151,6 +151,10 @@ where
     /// collection under the hood. In order to crate the iterator using a different queue
     /// use the `From`/`Into` traits, as demonstrated below.
     ///
+    /// Note that the iterator created with this method will have [`UnknownSize`].
+    /// In order to create a recursive iterator with a known exact length, you may use
+    /// `ConcurrentRecursiveIter::new(extend, initial_elements, exact_len)` function.
+    ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
