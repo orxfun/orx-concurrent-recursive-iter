@@ -2,7 +2,7 @@ use crate::{
     ExactSize, Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue,
 };
 use core::{marker::PhantomData, sync::atomic::Ordering};
-use orx_concurrent_iter::ConcurrentIter;
+use orx_concurrent_iter::{ConcurrentIter, ExactSizeConcurrentIter};
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 use orx_split_vec::SplitVec;
@@ -151,9 +151,21 @@ where
     /// collection under the hood. In order to crate the iterator using a different queue
     /// use the `From`/`Into` traits, as demonstrated below.
     ///
+    /// # UnknownSize vs ExactSize
+    ///
     /// Note that the iterator created with this method will have [`UnknownSize`].
     /// In order to create a recursive iterator with a known exact length, you may use
     /// `ConcurrentRecursiveIter::new(extend, initial_elements, exact_len)` function.
+    ///
+    /// Providing an `exact_len` impacts the following:
+    /// * When an exact length is provided, the recursive iterator implements
+    ///   [`ExactSizeConcurrentIter`] in addition to [`ConcurrentIter`].
+    ///   This enables the `len` method to access the number of remaining elements in a
+    ///   concurrent program. When this is not necessary, the exact length argument
+    ///   can simply be skipped.
+    /// * On the other hand, a known length is very useful for performance optimization
+    ///   when the recursive iterator is used as the input of a parallel iterator of the
+    ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
     ///
     /// # Examples
     ///
