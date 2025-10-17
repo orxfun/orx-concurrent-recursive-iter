@@ -438,7 +438,7 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     fn len(&self) -> usize {
-        todo!()
+        self.exact_len - self.queue.num_popped(Ordering::Relaxed)
     }
 }
 
