@@ -439,7 +439,7 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        match self.exact_len.len() {
+        match self.exact_len.exact_len() {
             Some(exact_len) => {
                 let popped = self.queue.num_popped(Ordering::Relaxed);
                 let remaining = exact_len - popped;

@@ -7,7 +7,7 @@ pub trait Size: Seal + Send + Sync + Clone + Copy {
     /// will generate if completely consumed.
     ///
     /// Returns None if this is not known ahead of time.
-    fn len(self) -> Option<usize>;
+    fn exact_len(self) -> Option<usize>;
 }
 
 /// The iterator has known exact size.
@@ -16,7 +16,7 @@ pub struct ExactSize(pub(super) usize);
 impl Seal for ExactSize {}
 impl Size for ExactSize {
     #[inline(always)]
-    fn len(self) -> Option<usize> {
+    fn exact_len(self) -> Option<usize> {
         Some(self.0)
     }
 }
@@ -27,7 +27,7 @@ pub struct UnknownSize;
 impl Seal for UnknownSize {}
 impl Size for UnknownSize {
     #[inline(always)]
-    fn len(self) -> Option<usize> {
+    fn exact_len(self) -> Option<usize> {
         None
     }
 }
