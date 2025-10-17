@@ -1,7 +1,7 @@
 use crate::{
     ExactSize, Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue,
 };
-use core::{marker::PhantomData, sync::atomic::Ordering};
+use core::{marker::PhantomData, sync::atomic::Ordering, usize};
 use orx_concurrent_iter::{ConcurrentIter, ExactSizeConcurrentIter};
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
@@ -108,7 +108,7 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
-    exact_len: Option<usize>,
+    exact_len: usize,
     p: PhantomData<S>,
 }
 
@@ -128,7 +128,7 @@ where
         Self {
             queue,
             extend,
-            exact_len: None,
+            exact_len: usize::MAX,
             p: PhantomData,
         }
     }
@@ -252,7 +252,7 @@ where
         Self {
             queue,
             extend,
-            exact_len: Some(exact_len),
+            exact_len,
             p: PhantomData,
         }
     }
@@ -425,6 +425,20 @@ where
 
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
+    }
+}
+
+impl<T, E, I, P> ExactSizeConcurrentIter for ConcurrentRecursiveIter<ExactSize, T, E, I, P>
+where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+{
+    fn len(&self) -> usize {
+        todo!()
     }
 }
 
