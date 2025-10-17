@@ -153,6 +153,10 @@ where
     ///
     /// # UnknownSize vs ExactSize
     ///
+    /// Size refers to the total number of elements that will be returned by the iterator,
+    /// which is the total of initial elements and all elements created by the recursive
+    /// extend calls.
+    ///
     /// Note that the iterator created with this method will have [`UnknownSize`].
     /// In order to create a recursive iterator with a known exact length, you may use
     /// [`new_exact`] function.
@@ -273,6 +277,10 @@ where
     ///
     /// # UnknownSize vs ExactSize
     ///
+    /// Size refers to the total number of elements that will be returned by the iterator,
+    /// which is the total of initial elements and all elements created by the recursive
+    /// extend calls.
+    ///
     /// Note that the iterator created with this method will have [`ExactSize`].
     /// In order to create a recursive iterator with an unknown length, you may use
     /// [`new`] function.
@@ -314,6 +322,11 @@ where
     /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
     /// use the `From` trait.
     ///
+    /// Note that:
+    /// * `From<(Extend, ConcurrentQueue<T, P>)>` creates a recursive concurrent iter with
+    ///   [`UnknownSize`], while
+    /// * `From<(Extend, ConcurrentQueue<T, P>, usize)>` creates one with [`ExactSize`].
+    ///
     /// ```
     /// use orx_concurrent_recursive_iter::*;
     /// use orx_concurrent_queue::ConcurrentQueue;
@@ -324,7 +337,7 @@ where
     /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
     /// queue.extend(initial_elements);
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue, 5));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -333,7 +346,7 @@ where
     /// let queue = ConcurrentQueue::with_fixed_capacity(5);
     /// queue.extend(initial_elements);
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue, 5));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -437,5 +450,15 @@ fn abc() {
     let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let all: Vec<_> = iter.item_puller().collect();
+    assert_eq!(all, [1, 2, 3, 4, 5]);
+
+    //
+
+    let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    let initial_elements = [1];
+
+    let iter = ConcurrentRecursiveIter::new_exact(extend, initial_elements, 5);
+    let all: Vec<_> = iter.item_puller().collect();
+
     assert_eq!(all, [1, 2, 3, 4, 5]);
 }
