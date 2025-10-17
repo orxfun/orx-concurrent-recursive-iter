@@ -195,6 +195,31 @@ where
     /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
     /// use the `From` trait.
     ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    /// use orx_concurrent_queue::ConcurrentQueue;
+    ///
+    /// let initial_elements = [1];
+    ///
+    /// // SplitVec with Linear growth
+    /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    ///
+    /// // FixedVec with fixed capacity
+    /// let queue = ConcurrentQueue::with_fixed_capacity(5);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
     /// [`SplitVec`]: orx_split_vec::SplitVec
     /// [`FixedVec`]: orx_fixed_vec::FixedVec
     /// [`Doubling`]: orx_split_vec::Doubling
@@ -269,8 +294,7 @@ where
     /// The following is a simple example to demonstrate how the dynamic iterator works.
     ///
     /// ```
-    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
-    /// use orx_concurrent_iter::ConcurrentIter;
+    /// use orx_concurrent_recursive_iter::*;
     ///
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
     /// let initial_elements = [1];
@@ -289,6 +313,31 @@ where
     /// Alternatively, we can use a `SplitVec` with a [`Linear`] growth strategy, or a
     /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
     /// use the `From` trait.
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    /// use orx_concurrent_queue::ConcurrentQueue;
+    ///
+    /// let initial_elements = [1];
+    ///
+    /// // SplitVec with Linear growth
+    /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    ///
+    /// // FixedVec with fixed capacity
+    /// let queue = ConcurrentQueue::with_fixed_capacity(5);
+    /// queue.extend(initial_elements);
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let iter = ConcurrentRecursiveIter::from((extend, queue));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
     ///
     /// [`SplitVec`]: orx_split_vec::SplitVec
     /// [`FixedVec`]: orx_fixed_vec::FixedVec
@@ -364,4 +413,29 @@ where
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
     }
+}
+
+#[test]
+fn abc() {
+    use alloc::vec::Vec;
+
+    let initial_elements = [1];
+
+    // SplitVec with Linear growth
+    let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    queue.extend(initial_elements);
+    let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
+
+    let all: Vec<_> = iter.item_puller().collect();
+    assert_eq!(all, [1, 2, 3, 4, 5]);
+
+    // FixedVec with fixed capacity
+    let queue = ConcurrentQueue::with_fixed_capacity(5);
+    queue.extend(initial_elements);
+    let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
+
+    let all: Vec<_> = iter.item_puller().collect();
+    assert_eq!(all, [1, 2, 3, 4, 5]);
 }
