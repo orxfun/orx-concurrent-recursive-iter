@@ -110,6 +110,8 @@ where
     p: PhantomData<S>,
 }
 
+// new with unknown size
+
 impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>)>
     for ConcurrentRecursiveIter<UnknownSize, T, E, I, P>
 where
@@ -197,6 +199,10 @@ where
         (extend, queue).into()
     }
 }
+
+// new with exact size
+
+// con iter
 
 impl<S, T, E, I, P> ConcurrentIter for ConcurrentRecursiveIter<S, T, E, I, P>
 where
