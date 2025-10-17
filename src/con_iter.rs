@@ -439,10 +439,19 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let min = self.queue.len();
-        match min {
-            0 => (0, Some(0)),
-            n => (n, None),
+        match self.exact_len.len() {
+            Some(exact_len) => {
+                let popped = self.queue.num_popped(Ordering::Relaxed);
+                let remaining = exact_len - popped;
+                (remaining, Some(remaining))
+            }
+            None => {
+                let min = self.queue.len();
+                match min {
+                    0 => (0, Some(0)),
+                    n => (n, None),
+                }
+            }
         }
     }
 
