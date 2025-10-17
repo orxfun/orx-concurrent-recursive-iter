@@ -155,7 +155,7 @@ where
     ///
     /// Note that the iterator created with this method will have [`UnknownSize`].
     /// In order to create a recursive iterator with a known exact length, you may use
-    /// `ConcurrentRecursiveIter::new(extend, initial_elements, exact_len)` function.
+    /// [`new_exact`] function.
     ///
     /// Providing an `exact_len` impacts the following:
     /// * When an exact length is provided, the recursive iterator implements
@@ -167,22 +167,11 @@ where
     ///   when the recursive iterator is used as the input of a parallel iterator of the
     ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
     ///
+    /// [`new_exact`]: ConcurrentRecursiveIter::new_exact
+    ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
-    ///
-    /// ```
-    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
-    /// use orx_concurrent_iter::ConcurrentIter;
-    ///
-    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let initial_elements = [1];
-    ///
-    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
-    /// let all: Vec<_> = iter.item_puller().collect();
-    ///
-    /// assert_eq!(all, [1, 2, 3, 4, 5]);
-    /// ```
     ///
     /// ```
     /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
@@ -257,6 +246,24 @@ where
     /// collection under the hood. In order to crate the iterator using a different queue
     /// use the `From`/`Into` traits, as demonstrated below.
     ///
+    /// # UnknownSize vs ExactSize
+    ///
+    /// Note that the iterator created with this method will have [`ExactSize`].
+    /// In order to create a recursive iterator with an unknown length, you may use
+    /// [`new`] function.
+    ///
+    /// Providing an `exact_len` impacts the following:
+    /// * When an exact length is provided, the recursive iterator implements
+    ///   [`ExactSizeConcurrentIter`] in addition to [`ConcurrentIter`].
+    ///   This enables the `len` method to access the number of remaining elements in a
+    ///   concurrent program. When this is not necessary, the exact length argument
+    ///   can simply be skipped.
+    /// * On the other hand, a known length is very useful for performance optimization
+    ///   when the recursive iterator is used as the input of a parallel iterator of the
+    ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
+    ///
+    /// [`new`]: ConcurrentRecursiveIter::new
+    ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
@@ -268,20 +275,7 @@ where
     /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
     /// let initial_elements = [1];
     ///
-    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
-    /// let all: Vec<_> = iter.item_puller().collect();
-    ///
-    /// assert_eq!(all, [1, 2, 3, 4, 5]);
-    /// ```
-    ///
-    /// ```
-    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
-    /// use orx_concurrent_iter::ConcurrentIter;
-    ///
-    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
-    /// let initial_elements = [1];
-    ///
-    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
+    /// let iter = ConcurrentRecursiveIter::new_exact(extend, initial_elements, 5);
     /// let all: Vec<_> = iter.item_puller().collect();
     ///
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -300,7 +294,11 @@ where
     /// [`FixedVec`]: orx_fixed_vec::FixedVec
     /// [`Doubling`]: orx_split_vec::Doubling
     /// [`Linear`]: orx_split_vec::Linear
-    pub fn new(extend: E, initial_elements: impl IntoIterator<Item = T>, exact_len: usize) -> Self {
+    pub fn new_exact(
+        extend: E,
+        initial_elements: impl IntoIterator<Item = T>,
+        exact_len: usize,
+    ) -> Self {
         let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
         vec.extend(initial_elements);
         let queue = vec.into();
