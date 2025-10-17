@@ -1,4 +1,6 @@
-use crate::{Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue};
+use crate::{
+    ExactSize, Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue,
+};
 use core::{marker::PhantomData, sync::atomic::Ordering};
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
@@ -106,7 +108,7 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
-    initial_len: Option<usize>,
+    exact_len: Option<usize>,
     p: PhantomData<S>,
 }
 
@@ -126,7 +128,7 @@ where
         Self {
             queue,
             extend,
-            initial_len: None,
+            exact_len: None,
             p: PhantomData,
         }
     }
@@ -201,6 +203,94 @@ where
 }
 
 // new with exact size
+
+impl<T, E, I, P> From<(E, ConcurrentQueue<T, P>, usize)>
+    for ConcurrentRecursiveIter<ExactSize, T, E, I, P>
+where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+{
+    fn from((extend, queue, exact_len): (E, ConcurrentQueue<T, P>, usize)) -> Self {
+        Self {
+            queue,
+            extend,
+            exact_len: Some(exact_len),
+            p: PhantomData,
+        }
+    }
+}
+
+impl<T, E, I> ConcurrentRecursiveIter<ExactSize, T, E, I, DefaultConPinnedVec<T>>
+where
+    T: Send,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+{
+    /// Creates a new dynamic concurrent iterator:
+    ///
+    /// * The iterator will initially contain `initial_elements`.
+    /// * Before yielding each element, say `e`, to the caller, the elements returned
+    ///   by `extend(&e)` will be added to the concurrent iterator, to be yield later.
+    ///
+    /// This constructor uses a [`ConcurrentQueue`] with the default pinned concurrent
+    /// collection under the hood. In order to crate the iterator using a different queue
+    /// use the `From`/`Into` traits, as demonstrated below.
+    ///
+    /// # Examples
+    ///
+    /// The following is a simple example to demonstrate how the dynamic iterator works.
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
+    /// use orx_concurrent_iter::ConcurrentIter;
+    ///
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let initial_elements = [1];
+    ///
+    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
+    /// let all: Vec<_> = iter.item_puller().collect();
+    ///
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
+    /// use orx_concurrent_iter::ConcurrentIter;
+    ///
+    /// let extend = |x: &usize| (*x < 5).then_some(x + 1);
+    /// let initial_elements = [1];
+    ///
+    /// let iter = ConcurrentRecursiveIter::new(extend, initial_elements);
+    /// let all: Vec<_> = iter.item_puller().collect();
+    ///
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
+    /// # Examples - From
+    ///
+    /// In the above example, the underlying pinned vector of the dynamic iterator created
+    /// with `new` is a [`SplitVec`] with a [`Doubling`] growth strategy.
+    ///
+    /// Alternatively, we can use a `SplitVec` with a [`Linear`] growth strategy, or a
+    /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
+    /// use the `From` trait.
+    ///
+    /// [`SplitVec`]: orx_split_vec::SplitVec
+    /// [`FixedVec`]: orx_fixed_vec::FixedVec
+    /// [`Doubling`]: orx_split_vec::Doubling
+    /// [`Linear`]: orx_split_vec::Linear
+    pub fn new(extend: E, initial_elements: impl IntoIterator<Item = T>, exact_len: usize) -> Self {
+        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        vec.extend(initial_elements);
+        let queue = vec.into();
+        (extend, queue, exact_len).into()
+    }
+}
 
 // con iter
 
