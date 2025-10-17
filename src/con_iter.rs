@@ -1,7 +1,7 @@
 use crate::{
     ExactSize, Size, UnknownSize, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue,
 };
-use core::{marker::PhantomData, sync::atomic::Ordering, usize};
+use core::{marker::PhantomData, sync::atomic::Ordering};
 use orx_concurrent_iter::{ConcurrentIter, ExactSizeConcurrentIter};
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
