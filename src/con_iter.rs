@@ -455,6 +455,13 @@ where
         }
     }
 
+    fn is_completed_when_none_returned(&self) -> bool {
+        let popped = self.queue.num_popped(Ordering::Relaxed);
+        let write_reserved = self.queue.num_write_reserved(Ordering::Relaxed);
+        let written = self.queue.num_written(Ordering::Relaxed);
+        popped >= write_reserved && write_reserved == written
+    }
+
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
         DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
     }
