@@ -36,10 +36,9 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        return self.queue.pop().map(|element| {
-            (self.extend)(&element, &Queue::from(&self.queue));
-            element
-        });
+        self.queue
+            .pop()
+            .inspect(|element| (self.extend)(element, &Queue::from(&self.queue)))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
