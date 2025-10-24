@@ -1,4 +1,5 @@
 use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue};
+use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
@@ -35,15 +36,20 @@ where
     }
 
     fn skip_to_end(&self) {
-        todo!()
+        let len = self.queue.num_write_reserved(Ordering::Acquire);
+        let _remaining_to_drop = self.queue.pull(len);
     }
 
     fn next(&self) -> Option<Self::Item> {
-        todo!()
+        let n = self.queue.pop()?;
+        (self.extend)(&n, &Queue::from(&self.queue));
+        Some(n)
     }
 
     fn next_with_idx(&self) -> Option<(usize, Self::Item)> {
-        todo!()
+        let (idx, n) = self.queue.pop_with_idx()?;
+        (self.extend)(&n, &Queue::from(&self.queue));
+        Some((idx, n))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
