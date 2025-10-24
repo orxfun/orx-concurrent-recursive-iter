@@ -25,3 +25,9 @@ mod queue;
 
 // re-import
 pub use orx_concurrent_iter::*;
+
+pub use chunk::DynChunk;
+pub use chunk_puller::DynChunkPuller;
+pub use con_iter::ConcurrentRecursiveIter;
+pub use dyn_seq_queue::DynSeqQueue;
+pub use queue::Queue;
