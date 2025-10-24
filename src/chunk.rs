@@ -10,7 +10,7 @@ where
 {
     chunk: QueueIterOwned<'a, T, P>,
     extend: &'a E,
-    queue: &'a Queue<'a, T, P>,
+    queue: Queue<'a, T, P>,
 }
 
 impl<'a, T, E, P> DynChunk<'a, T, E, P>
@@ -22,7 +22,7 @@ where
     pub(super) fn new(
         chunk: QueueIterOwned<'a, T, P>,
         extend: &'a E,
-        queue: &'a Queue<'a, T, P>,
+        queue: Queue<'a, T, P>,
     ) -> Self {
         Self {
             chunk,
@@ -42,7 +42,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.chunk.next()?;
-        (self.extend)(&n, self.queue);
+        (self.extend)(&n, &self.queue);
         // let children = (self.extend)(&n);
         // self.queue.extend(children);
         Some(n)

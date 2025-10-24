@@ -18,6 +18,7 @@ extern crate alloc;
 extern crate std;
 
 mod chunk;
+mod chunk_puller;
 mod con_iter;
 mod dyn_seq_queue;
 mod queue;
