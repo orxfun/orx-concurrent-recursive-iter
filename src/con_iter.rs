@@ -3,6 +3,7 @@ use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
+use orx_split_vec::SplitVec;
 
 pub struct ConcurrentRecursiveIter<T, E, P = DefaultConPinnedVec<T>>
 where
@@ -45,6 +46,30 @@ where
             extend,
             exact_len: Some(exact_len),
         }
+    }
+}
+
+impl<T, E> ConcurrentRecursiveIter<T, E, DefaultConPinnedVec<T>>
+where
+    T: Send,
+    E: Fn(&T, &Queue<T, DefaultConPinnedVec<T>>) + Sync,
+{
+    pub fn new(initial_elements: impl IntoIterator<Item = T>, extend: E) -> Self {
+        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        vec.extend(initial_elements);
+        let queue = vec.into();
+        (queue, extend).into()
+    }
+
+    pub fn new_exact(
+        initial_elements: impl IntoIterator<Item = T>,
+        extend: E,
+        exact_len: usize,
+    ) -> Self {
+        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        vec.extend(initial_elements);
+        let queue = vec.into();
+        (queue, extend, exact_len).into()
     }
 }
 
