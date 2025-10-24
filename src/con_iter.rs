@@ -16,6 +16,38 @@ where
     exact_len: Option<usize>,
 }
 
+impl<T, E, P> From<(ConcurrentQueue<T, P>, E)> for ConcurrentRecursiveIter<T, E, P>
+where
+    T: Send,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+    E: Fn(&T, &Queue<T, P>) + Sync,
+{
+    fn from((queue, extend): (ConcurrentQueue<T, P>, E)) -> Self {
+        Self {
+            queue,
+            extend,
+            exact_len: None,
+        }
+    }
+}
+
+impl<T, E, P> From<(ConcurrentQueue<T, P>, E, usize)> for ConcurrentRecursiveIter<T, E, P>
+where
+    T: Send,
+    P: ConcurrentPinnedVec<T>,
+    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
+    E: Fn(&T, &Queue<T, P>) + Sync,
+{
+    fn from((queue, extend, exact_len): (ConcurrentQueue<T, P>, E, usize)) -> Self {
+        Self {
+            queue,
+            extend,
+            exact_len: Some(exact_len),
+        }
+    }
+}
+
 impl<T, E, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, P>
 where
     T: Send,
