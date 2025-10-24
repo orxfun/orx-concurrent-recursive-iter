@@ -28,3 +28,14 @@ where
         self.queue.extend(elements);
     }
 }
+
+impl<'q, T, P> From<&'q ConcurrentQueue<T, P>> for Queue<'q, T, P>
+where
+    T: Send,
+    P: ConcurrentPinnedVec<T>,
+{
+    #[inline(always)]
+    fn from(queue: &'q ConcurrentQueue<T, P>) -> Self {
+        Self { queue }
+    }
+}
