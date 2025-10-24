@@ -18,7 +18,7 @@ extern crate alloc;
 extern crate std;
 
 mod con_iter;
-mod queue_extension;
+mod queue;
 
 // re-import
 pub use orx_concurrent_iter::*;
