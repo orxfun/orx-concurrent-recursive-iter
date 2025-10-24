@@ -13,6 +13,7 @@ where
 {
     queue: ConcurrentQueue<T, P>,
     extend: E,
+    exact_len: Option<usize>,
 }
 
 impl<T, E, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, P>
@@ -53,14 +54,29 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        todo!()
+        match self.exact_len {
+            Some(exact_len) => {
+                let popped = self.queue.num_popped(Ordering::Relaxed);
+                let remaining = exact_len - popped;
+                (remaining, Some(remaining))
+            }
+            None => {
+                let min = self.queue.len();
+                match min {
+                    0 => (0, Some(0)),
+                    n => (n, None),
+                }
+            }
+        }
     }
 
     fn is_completed_when_none_returned(&self) -> bool {
-        todo!()
+        let popped = self.queue.num_popped(Ordering::Relaxed);
+        let write_reserved = self.queue.num_write_reserved(Ordering::Relaxed);
+        popped >= write_reserved
     }
 
     fn chunk_puller(&self, chunk_size: usize) -> Self::ChunkPuller<'_> {
-        todo!()
+        DynChunkPuller::new(&self.extend, &self.queue, chunk_size)
     }
 }
