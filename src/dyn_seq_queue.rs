@@ -1,5 +1,5 @@
 use crate::queue::Queue;
-use core::{iter::FusedIterator, marker::PhantomData};
+use core::iter::FusedIterator;
 use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
@@ -11,10 +11,7 @@ where
     E: Fn(&T, &Queue<T, P>) + Sync,
 {
     queue: ConcurrentQueue<T, P>,
-    written: usize,
-    popped: usize,
     extend: E,
-    phantom: PhantomData<T>,
 }
 
 impl<T, P, E> DynSeqQueue<T, P, E>
@@ -24,19 +21,8 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
     E: Fn(&T, &Queue<T, P>) + Sync,
 {
-    pub(super) fn new(
-        queue: ConcurrentQueue<T, P>,
-        written: usize,
-        popped: usize,
-        extend: E,
-    ) -> Self {
-        Self {
-            queue,
-            written,
-            popped,
-            extend,
-            phantom: PhantomData,
-        }
+    pub(super) fn new(queue: ConcurrentQueue<T, P>, extend: E) -> Self {
+        Self { queue, extend }
     }
 }
 
@@ -57,8 +43,7 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let min = self.written - self.popped;
-        (min, None)
+        (self.queue.len(), None)
     }
 }
 
