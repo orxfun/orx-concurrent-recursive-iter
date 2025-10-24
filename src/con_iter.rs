@@ -255,6 +255,104 @@ where
         (queue, extend).into()
     }
 
+    /// Creates a new dynamic concurrent iterator:
+    ///
+    /// * The iterator will initially contain `initial_elements`.
+    /// * Before yielding each element, say `e`, to the caller, the elements returned
+    ///   by `extend(&e, &queue)` will called to create elements on the fly.
+    ///
+    /// This constructor uses a [`ConcurrentQueue`] with the default pinned concurrent
+    /// collection under the hood. In order to create the iterator using a different queue
+    /// use the `From`/`Into` traits, as demonstrated below.
+    ///
+    /// # UnknownSize vs ExactSize
+    ///
+    /// Size refers to the total number of elements that will be returned by the iterator,
+    /// which is the total of initial elements and all elements created by the recursive
+    /// extend calls.
+    ///
+    /// Note that the iterator created with this method will have an unknown size.
+    /// In order to create a recursive iterator with a known exact length, you may use
+    /// [`new_exact`] function.
+    ///
+    /// Providing an `exact_len` impacts the following:
+    /// * When the exact length is provided, `try_get_len` method can provide the number of remaining
+    ///   elements. When this is not necessary, the exact length argument can simply be skipped.
+    /// * On the other hand, a known length is very useful for performance optimization
+    ///   when the recursive iterator is used as the input of a parallel iterator of the
+    ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
+    ///
+    /// [`new_exact`]: ConcurrentRecursiveIter::new_exact
+    ///
+    /// # Examples
+    ///
+    /// The following is a simple example to demonstrate how the dynamic iterator works.
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::{ConcurrentRecursiveIter, Queue};
+    /// use orx_concurrent_iter::ConcurrentIter;
+    ///
+    /// let extend = |x: &usize, queue: &Queue<usize>| {
+    ///     if *x < 5 {
+    ///         queue.push(x + 1);
+    ///     }
+    /// };
+    ///
+    /// let initial_elements = [1];
+    ///
+    /// let iter = ConcurrentRecursiveIter::new(initial_elements, extend);
+    /// let all: Vec<_> = iter.item_puller().collect();
+    ///
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
+    /// # Examples - From
+    ///
+    /// In the above example, the underlying pinned vector of the dynamic iterator created
+    /// with `new` is a [`SplitVec`] with a [`Doubling`] growth strategy.
+    ///
+    /// Alternatively, we can use a `SplitVec` with a [`Linear`] growth strategy, or a
+    /// pre-allocated [`FixedVec`] as the underlying storage. In order to do so, we can
+    /// use the `From` trait.
+    ///
+    /// ```
+    /// use orx_concurrent_recursive_iter::*;
+    /// use orx_concurrent_queue::ConcurrentQueue;
+    /// use orx_pinned_vec::IntoConcurrentPinnedVec;
+    /// use orx_split_vec::{SplitVec, Linear};
+    /// use orx_fixed_vec::FixedVec;
+    ///
+    /// let initial_elements = [1];
+    /// fn extend<P>(x: &usize, queue: &Queue<usize, P::ConPinnedVec>)
+    /// where
+    ///     P: IntoConcurrentPinnedVec<usize>,
+    /// {
+    ///     if *x < 5 {
+    ///         queue.push(x + 1);
+    ///     }
+    /// }
+    ///
+    /// // SplitVec with Linear growth
+    /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
+    /// queue.extend(initial_elements);
+    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Linear>>));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    ///
+    /// // FixedVec with fixed capacity
+    /// let queue = ConcurrentQueue::with_fixed_capacity(5);
+    /// queue.extend(initial_elements);
+    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<FixedVec<_>>));
+    ///
+    /// let all: Vec<_> = iter.item_puller().collect();
+    /// assert_eq!(all, [1, 2, 3, 4, 5]);
+    /// ```
+    ///
+    /// [`SplitVec`]: orx_split_vec::SplitVec
+    /// [`FixedVec`]: orx_fixed_vec::FixedVec
+    /// [`Doubling`]: orx_split_vec::Doubling
+    /// [`Linear`]: orx_split_vec::Linear
     pub fn new_exact(
         initial_elements: impl IntoIterator<Item = T>,
         extend: E,
