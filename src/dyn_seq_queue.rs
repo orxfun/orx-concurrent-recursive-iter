@@ -43,7 +43,10 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.queue.len(), None)
+        match self.queue.len() {
+            0 => (0, Some(0)),
+            n => (n, None),
+        }
     }
 }
 

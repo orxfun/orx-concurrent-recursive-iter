@@ -60,13 +60,10 @@ where
                 let remaining = exact_len - popped;
                 (remaining, Some(remaining))
             }
-            None => {
-                let min = self.queue.len();
-                match min {
-                    0 => (0, Some(0)),
-                    n => (n, None),
-                }
-            }
+            None => match self.queue.len() {
+                0 => (0, Some(0)),
+                n => (n, None),
+            },
         }
     }
 
