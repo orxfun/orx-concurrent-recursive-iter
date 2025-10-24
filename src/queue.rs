@@ -1,7 +1,7 @@
-use orx_concurrent_queue::ConcurrentQueue;
+use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::ConcurrentPinnedVec;
 
-pub struct Queue<'a, T, P>
+pub struct Queue<'a, T, P = DefaultConPinnedVec<T>>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,

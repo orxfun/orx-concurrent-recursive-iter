@@ -17,6 +17,9 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+#[cfg(test)]
+mod tests;
+
 mod chunk;
 mod chunk_puller;
 mod con_iter;
