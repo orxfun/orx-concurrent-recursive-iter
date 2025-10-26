@@ -1,5 +1,4 @@
 use crate::{
-    Queue,
     con_iter::ConcurrentRecursiveIter,
     tests::node::{Node, Roots},
 };
@@ -56,14 +55,11 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-
-    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+    let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
-        let children = (0..i).map(|x| x.to_string());
-        q.extend(children);
+        (0..i).map(|x| x.to_string())
     };
-
-    let iter = ConcurrentRecursiveIter::from((queue, extend));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     assert_eq!(iter.next(), Some(1.to_string()));
     assert_eq!(iter.next(), Some(2.to_string()));
@@ -92,12 +88,11 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+    let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
-        let children = (0..i).map(|x| x.to_string());
-        q.extend(children);
+        (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIter::from((queue, extend));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     assert_eq!(iter.next_with_idx(), Some((0, 1.to_string())));
     assert_eq!(iter.next_with_idx(), Some((1, 2.to_string())));
@@ -126,12 +121,11 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+    let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
-        let children = (0..i).map(|x| x.to_string());
-        q.extend(children);
+        (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIter::from((queue, extend));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -186,12 +180,11 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+    let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
-        let children = (0..i).map(|x| x.to_string());
-        q.extend(children);
+        (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIter::from((queue, extend));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -217,12 +210,11 @@ where
     P: IntoConcurrentPinnedVec<String>,
 {
     let queue = ConcurrentQueue::from(vec(0, 20));
-    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+    let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
-        let children = (0..i).map(|x| x.to_string());
-        q.extend(children);
+        (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIter::from((queue, extend));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     std::thread::scope(|s| {
         for _ in 0..nt {
@@ -242,11 +234,8 @@ where
     });
 }
 
-fn extend<'a, 'b, P>(node: &'a &'b Node, queue: &Queue<&'b Node, P::ConPinnedVec>)
-where
-    P: IntoConcurrentPinnedVec<&'b Node>,
-{
-    queue.extend(&node.children);
+fn extend<'a, 'b>(node: &'a &'b Node) -> &'b [Node] {
+    &node.children
 }
 
 fn assert_eq(roots: &Roots, bag: ConcurrentBag<&Node>) {
@@ -296,7 +285,7 @@ fn next(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -324,7 +313,7 @@ fn next_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_linear_growth_and_fragments_capacity(10, 64);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Linear>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -352,7 +341,7 @@ fn item_puller(n: usize, nt: usize) {
     let vec = FixedVec::new(roots.num_nodes() + 10);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<FixedVec<_>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -380,7 +369,7 @@ fn item_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -408,7 +397,7 @@ fn chunk_puller(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -440,7 +429,7 @@ fn chunk_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -472,7 +461,7 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
     let vec = FixedVec::new(roots.num_nodes() + 10);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<FixedVec<_>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -499,7 +488,7 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -526,7 +515,7 @@ fn skip_to_end(n: usize, nt: usize) {
     let vec = SplitVec::with_linear_growth_and_fragments_capacity(10, 128);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Linear>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let until = n / 2;
 
@@ -590,7 +579,7 @@ fn into_seq_iter(n: usize, nt: usize, until: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Doubling>>));
+    let iter = ConcurrentRecursiveIter::from((extend, queue));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);

@@ -31,9 +31,13 @@ Growth is defined by the `extend` function. For every element `x` pulled from th
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1, 2];
-let extend = |x: &usize| (*x < 1000).then_some(x * 10);
+let extend = |x: &usize, queue: &Queue<usize>| {
+    if *x < 1000 {
+        queue.push(x * 10);
+    }
+};
 
-let iter = ConcurrentRecursiveIter::new(extend, initial);
+let iter = ConcurrentRecursiveIter::new(initial, extend);
 
 let mut collected = vec![];
 while let Some(x) = iter.next() {
@@ -68,11 +72,10 @@ The following is again a simple and sequential example, except that this time ea
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1];
-let extend = |x: &usize| match *x < 100 {
-    true => vec![x * 10, x * 20],
-    false => vec![],
+let extend = |x: &usize, queue: &Queue<usize>| if *x < 100 {
+    queue.extend([x * 10, x * 20]);
 };
-let iter = ConcurrentRecursiveIter::new(extend, initial);
+let iter = ConcurrentRecursiveIter::new(initial, extend);
 
 let collected: Vec<_> = iter.item_puller().collect();
 assert_eq!(collected, vec![1, 10, 20, 100, 200, 200, 400]);
@@ -82,56 +85,16 @@ Here, we start with only one initial element, 1:
 
 * we make the first `next` call:
   * 1 is pulled leaving the `iter` empty.
-  * `extend(&1)` call returns two elements which are added to the iterator which then becomes `[10, 20]`.
+  * `extend(&1, &queue)` call adds two elements to the iterator which then becomes `[10, 20]`.
 * we make the second `next` call:
   * 10 is pulled and `iter` becomes `[20]`.
-  * `extend(&10)` returns two more elements which results in `iter = [20, 100, 200]`.
+  * `extend(&10, &queue)` adds two more elements which results in `iter = [20, 100, 200]`.
 * ...
 * we make another `next` call while `iter` has one element `[400]`.
   * 400 is pulled, leaving `iter` empty
-  * `extend(&400)` is called which returns nothing.
+  * `extend(&400, &queue)` does nothing this time.
   * then 400 is assigned to `x`.
 * finally, the iterator is empty and the `next` call returns `None`.
-
-### The allocation problem
-
-Notice in the above example that the `extend` method returns a vector. Therefore, each time it returns multiple elements, we need to allocate. This is due to the requirement that `extend` must return an `ExactSizeIterator`.
-
-The same program can be implemented in the following way to avoid allocation:
-
-```rust compile_fail
-use orx_concurrent_recursive_iter::*;
-
-let initial = [1];
-let extend = |x: &usize| {
-    (*x < 100)
-        .then_some(*x)
-        .into_iter()
-        .flat_map(|x| [x * 10, x * 20])
-};
-let iter = ConcurrentRecursiveIter::new(extend, initial);
-
-let collected: Vec<_> = iter.item_puller().collect();
-assert_eq!(collected, vec![1, 10, 20, 100, 200, 200, 400]);
-```
-
-However, this code unfortunately does not compile:
-
-```bash
-FlatMap<std::option::IntoIter<usize>, [usize; 2], impl FnMut(usize) -> [usize; 2]>: ExactSizeIterator` is not satisfied
-```
-
-The problem is that `FlatMap<std::option::IntoIter<usize>, impl FnMut(usize) -> [usize; 2]>` does not implement `ExactSizeIterator`.
-
-We might, however, argue that we know exactly the size of this iterator from the type signature:
-* it is 0 if the option is `None`,
-* it is 2 otherwise.
-
-And we would be absolutely correct!
-
-This seems like a missing implementation from the core library and will hopefully be added.
-
-And in certain use cases when iterating over recursive data structures, we do not observe the allocation problem since the allocation is already done while defining the input collection. The following example demonstrates such a case.
 
 ### Concurrent recursive iteration
 
@@ -172,14 +135,14 @@ fn process(node_value: u64) {
 
 // this defines how the iterator must extend:
 // each node drawn from the iterator adds its children to the end of the iterator
-fn extend<'a, 'b>(node: &'a &'b Node) -> &'b [Node] {
-    &node.children
+fn extend<'a, 'b>(node: &'a &'b Node, queue: &Queue<&'b Node>) {
+    queue.extend(&node.children);
 }
 
 // initiate iter with a single element, `root`
 // however, the iterator will `extend` on the fly as we keep drawing its elements
 let root = Node::new(&mut ChaCha8Rng::seed_from_u64(42), 70);
-let iter = ConcurrentRecursiveIter::new(extend, [&root]);
+let iter = ConcurrentRecursiveIter::new([&root], extend);
 
 let num_threads = 8;
 let num_spawned = AtomicUsize::new(0);

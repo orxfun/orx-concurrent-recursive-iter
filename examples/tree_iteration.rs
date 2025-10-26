@@ -1,7 +1,7 @@
 // cargo run --release --example tree_iteration
 
 use orx_concurrent_iter::ConcurrentIter;
-use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
+use orx_concurrent_recursive_iter::{ConcurrentRecursiveIter, Queue};
 use rand::Rng;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -44,10 +44,11 @@ impl Node {
 }
 
 fn compute_with_rec_iter(root: &Node, num_threads: usize) -> u64 {
-    fn extend<'a, 'b>(node: &'a &'b Node) -> &'b [Node] {
-        &node.children
+    fn extend<'a, 'b>(node: &'a &'b Node, queue: &Queue<&'b Node>) {
+        queue.extend(&node.children);
     }
-    let iter = ConcurrentRecursiveIter::new(extend, [root]);
+
+    let iter = ConcurrentRecursiveIter::new([root], extend);
 
     let num_spawned = AtomicUsize::new(0);
     std::thread::scope(|s| {

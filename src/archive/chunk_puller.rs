@@ -1,12 +1,14 @@
-use crate::{chunk::DynChunk, queue::Queue};
+use crate::chunk::DynChunk;
 use orx_concurrent_iter::ChunkPuller;
 use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::ConcurrentPinnedVec;
 
-pub struct DynChunkPuller<'a, T, E, P>
+pub struct DynChunkPuller<'a, T, E, I, P>
 where
     T: Send,
-    E: Fn(&T, &Queue<T, P>) + Sync,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
     P: ConcurrentPinnedVec<T>,
 {
     extend: &'a E,
@@ -14,10 +16,12 @@ where
     chunk_size: usize,
 }
 
-impl<'a, T, E, P> DynChunkPuller<'a, T, E, P>
+impl<'a, T, E, I, P> DynChunkPuller<'a, T, E, I, P>
 where
     T: Send,
-    E: Fn(&T, &Queue<T, P>) + Sync,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
     P: ConcurrentPinnedVec<T>,
 {
     pub(super) fn new(extend: &'a E, queue: &'a ConcurrentQueue<T, P>, chunk_size: usize) -> Self {
@@ -29,16 +33,18 @@ where
     }
 }
 
-impl<'a, T, E, P> ChunkPuller for DynChunkPuller<'a, T, E, P>
+impl<'a, T, E, I, P> ChunkPuller for DynChunkPuller<'a, T, E, I, P>
 where
     T: Send,
-    E: Fn(&T, &Queue<T, P>) + Sync,
+    E: Fn(&T) -> I + Sync,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
     P: ConcurrentPinnedVec<T>,
 {
     type ChunkItem = T;
 
     type Chunk<'c>
-        = DynChunk<'c, T, E, P>
+        = DynChunk<'c, T, E, I, P>
     where
         Self: 'c;
 
@@ -49,14 +55,11 @@ where
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
         let chunk = self.queue.pull(self.chunk_size)?;
-        Some(DynChunk::new(chunk, self.extend, self.queue.into()))
+        Some(DynChunk::new(chunk, self.extend, self.queue))
     }
 
     fn pull_with_idx(&mut self) -> Option<(usize, Self::Chunk<'_>)> {
         let (begin_idx, chunk) = self.queue.pull_with_idx(self.chunk_size)?;
-        Some((
-            begin_idx,
-            DynChunk::new(chunk, self.extend, self.queue.into()),
-        ))
+        Some((begin_idx, DynChunk::new(chunk, self.extend, self.queue)))
     }
 }
