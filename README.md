@@ -6,14 +6,14 @@
 
 A concurrent iterator ([ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html)) that can be extended recursively by each of its items.
 
-> This is a **no-std** crate.
+_This is a **no-std** crate._
 
 ## Concurrent Recursive Iter
 
 [`ConcurrentRecursiveIter`](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_recursive_iter/struct.ConcurrentRecursiveIter.html) is a [ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html) implementation which
 
-* naturally shrinks as we iterate,
-* but can also grow as it allows to add new items to the iterator, during iteration.
+- naturally shrinks as we iterate,
+- but can also grow as it allows to add new items to the iterator, during iteration.
 
 Assume the item type of the iterator is `T`. Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I` where `I: IntoIterator<Item = T>` with a known length.
 
@@ -48,21 +48,22 @@ assert_eq!(collected, vec![1, 2, 10, 20, 100, 200, 1000, 2000]);
 ```
 
 This sequential example allows us demonstrate the recursive iteration easily. Following is the list of events in order during the `while let` iteration:
-* `iter` has elements `[1, 2]`
-* we make the `next` call
-  * 1 is pulled, `iter` has one element `[2]`
-  * `extend(&1)` is called which returns 10, this is added to iter, `[2, 10]`.
-  * only then, 1 is returned; i.e., `x` is set to 1 which is then used by the caller (added to the `collected` here).
-* we make the second `next` call
-  * 2 is pulled, `iter` has one element `[10]`
-  * `extend(&2)` is called which returns 20, this is added to iter, `[10, 20]`.
-  * then 2 is assigned to `x`.
-* ...
-* we make another `next` call while `iter` has one element `[2000]`.
-  * 2000 is pulled, leaving `iter` empty
-  * `extend(&2000)` is called which returns None.
-  * then 2000 is assigned to `x`.
-* finally, the iterator is empty and the `next` call returns `None`.
+
+- `iter` has elements `[1, 2]`
+- we make the `next` call
+  - 1 is pulled, `iter` has one element `[2]`
+  - `extend(&1)` is called which returns 10, this is added to iter, `[2, 10]`.
+  - only then, 1 is returned; i.e., `x` is set to 1 which is then used by the caller (added to the `collected` here).
+- we make the second `next` call
+  - 2 is pulled, `iter` has one element `[10]`
+  - `extend(&2)` is called which returns 20, this is added to iter, `[10, 20]`.
+  - then 2 is assigned to `x`.
+- ...
+- we make another `next` call while `iter` has one element `[2000]`.
+  - 2000 is pulled, leaving `iter` empty
+  - `extend(&2000)` is called which returns None.
+  - then 2000 is assigned to `x`.
+- finally, the iterator is empty and the `next` call returns `None`.
 
 ### A simple example, extending by 0 or multiple elements
 
@@ -83,18 +84,18 @@ assert_eq!(collected, vec![1, 10, 20, 100, 200, 200, 400]);
 
 Here, we start with only one initial element, 1:
 
-* we make the first `next` call:
-  * 1 is pulled leaving the `iter` empty.
-  * `extend(&1, &queue)` call adds two elements to the iterator which then becomes `[10, 20]`.
-* we make the second `next` call:
-  * 10 is pulled and `iter` becomes `[20]`.
-  * `extend(&10, &queue)` adds two more elements which results in `iter = [20, 100, 200]`.
-* ...
-* we make another `next` call while `iter` has one element `[400]`.
-  * 400 is pulled, leaving `iter` empty
-  * `extend(&400, &queue)` does nothing this time.
-  * then 400 is assigned to `x`.
-* finally, the iterator is empty and the `next` call returns `None`.
+- we make the first `next` call:
+  - 1 is pulled leaving the `iter` empty.
+  - `extend(&1, &queue)` call adds two elements to the iterator which then becomes `[10, 20]`.
+- we make the second `next` call:
+  - 10 is pulled and `iter` becomes `[20]`.
+  - `extend(&10, &queue)` adds two more elements which results in `iter = [20, 100, 200]`.
+- ...
+- we make another `next` call while `iter` has one element `[400]`.
+  - 400 is pulled, leaving `iter` empty
+  - `extend(&400, &queue)` does nothing this time.
+  - then 400 is assigned to `x`.
+- finally, the iterator is empty and the `next` call returns `None`.
 
 ### Concurrent recursive iteration
 

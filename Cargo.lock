@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "orx-concurrent-recursive-iter"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "criterion",
  "orx-concurrent-bag",
