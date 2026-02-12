@@ -52,12 +52,19 @@ jobs:
 
     - name: Clippy
       run: cargo clippy -- -D warnings --verbose
-
-    - name: Clean miri cache
-      run: cargo clean
   
-    - name: Miri
-      run: cargo +nightly miri test --lib --bins --tests --verbose
-
     - name: NoStd
       run: cargo +nightly no-std-check
+
+    - name: Install Rust nightly and miri
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+    
+    - name: Clean miri cache
+      run: rm -rf target/miri
+    
+    - name: Run miri tests
+      env:
+        CARGO_INCREMENTAL: 0
+      run: cargo +nightly miri test --lib --bins --tests --verbose
