@@ -44,7 +44,7 @@ impl Node {
 }
 
 fn compute_with_rec_iter(root: &Node, num_threads: usize) -> u64 {
-    fn extend<'a, 'b>(node: &'a &'b Node, queue: &Queue<&'b Node>) {
+    fn extend<'a>(node: &&'a Node, queue: &Queue<&'a Node>) {
         queue.extend(&node.children);
     }
 
