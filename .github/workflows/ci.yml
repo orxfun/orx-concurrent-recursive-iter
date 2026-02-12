@@ -53,6 +53,9 @@ jobs:
     - name: Clippy
       run: cargo clippy -- -D warnings --verbose
 
+    - name: Clean miri cache
+      run: rm -rf target/miri
+  
     - name: Miri
       run: cargo +nightly miri test --lib --bins --tests --verbose
 
