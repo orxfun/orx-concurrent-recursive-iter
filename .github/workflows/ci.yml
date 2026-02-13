@@ -61,6 +61,9 @@ jobs:
       with:
         components: miri
 
+    - name: Clean cargo artifacts
+      run: cargo clean
+
     - name: Run miri tests
       env:
         CARGO_INCREMENTAL: 0
