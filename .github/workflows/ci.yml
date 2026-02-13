@@ -30,6 +30,8 @@ jobs:
       run: rustup target add i686-unknown-linux-musl
     - name: Install wasm target
       run: rustup target add wasm32v1-none
+    - name: Install no-std-check
+      run: cargo install cargo-no-std-check
       
     - name: Build
       run: cargo build --verbose
