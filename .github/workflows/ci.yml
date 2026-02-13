@@ -56,7 +56,7 @@ jobs:
   miri:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Install Rust nightly with miri
       uses: dtolnay/rust-toolchain@nightly
