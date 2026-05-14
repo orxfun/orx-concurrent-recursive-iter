@@ -229,8 +229,8 @@ enum Method {
     Seq,
     Rayon,
     RecIter,
-    RecIterShards,
-    RecIterShardsDiv8,
+    RecIterShards1,
+    RecIterShards8,
 }
 
 impl Factors for Method {
@@ -243,9 +243,9 @@ impl Factors for Method {
             match self {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
-                Self::RecIter => "reciter",
-                Self::RecIterShards => "reciter-shards",
-                Self::RecIterShardsDiv8 => "reciter-shards-div8",
+                Self::RecIter => "orx",
+                Self::RecIterShards1 => "orx-sh1",
+                Self::RecIterShards8 => "orx-sh8",
             }
             .to_string(),
         ]
@@ -287,13 +287,13 @@ impl Experiment for Exp {
             Method::RecIter => {
                 recursive_iter_sum(input, input_variant.work, input_variant.num_threads)
             }
-            Method::RecIterShards => recursive_iter_shards_sum(
+            Method::RecIterShards1 => recursive_iter_shards_sum(
                 input,
                 input_variant.work,
                 input_variant.num_threads,
                 input_variant.num_threads,
             ),
-            Method::RecIterShardsDiv8 => {
+            Method::RecIterShards8 => {
                 let num_shards = (input_variant.num_threads / 8).max(1);
                 recursive_iter_shards_sum(
                     input,
