@@ -315,11 +315,10 @@ dependencies = [
 [[package]]
 name = "orx-concurrent-queue"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b096e39c0ac22afd0168c91a14b22657ce3d8c0a21fc9cf45461265699bff35"
 dependencies = [
  "orx-fixed-vec",
  "orx-pinned-vec",
+ "orx-pseudo-default",
  "orx-split-vec",
 ]
 
@@ -336,6 +335,7 @@ dependencies = [
  "orx-criterion",
  "orx-fixed-vec",
  "orx-pinned-vec",
+ "orx-pseudo-default",
  "orx-split-vec",
  "rand",
  "rand_chacha",

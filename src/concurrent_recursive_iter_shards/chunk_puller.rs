@@ -1,12 +1,15 @@
-use crate::concurrent_recursive_iter_shards::{backend::ShardedQueue, chunk::DynChunk, queue::Queue};
+use crate::concurrent_recursive_iter_shards::{
+    backend::ShardedQueue, chunk::DynChunk, queue::Queue,
+};
 use orx_concurrent_iter::ChunkPuller;
-use orx_pinned_vec::ConcurrentPinnedVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
 pub struct DynChunkPuller<'a, T, E, P>
 where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     extend: &'a E,
     queue: &'a ShardedQueue<T, P>,
@@ -18,6 +21,7 @@ where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     pub(super) fn new(extend: &'a E, queue: &'a ShardedQueue<T, P>, chunk_size: usize) -> Self {
         Self {
@@ -33,6 +37,7 @@ where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     type ChunkItem = T;
 

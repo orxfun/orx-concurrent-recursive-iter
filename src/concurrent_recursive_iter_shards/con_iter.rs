@@ -6,6 +6,7 @@ use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec, PinnedVec};
+use orx_pseudo_default::PseudoDefault;
 
 /// A recursive [`ConcurrentIter`] which:
 /// * naturally shrinks as we iterate,
@@ -263,10 +264,9 @@ where
         num_shards: NonZeroUsize,
     ) -> Self {
         let num_shards = num_shards.get();
-        let mut shards =
-            orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
-        for _ in 0..num_shards {
-            shards.push(ConcurrentQueue::new());
+        let mut shards = [(); 32].map(|_| ConcurrentQueue::pseudo_default());
+        for i in 0..num_shards {
+            shards[i] = ConcurrentQueue::new();
         }
 
         let queue = ShardedQueue::from_shards(shards);
@@ -396,10 +396,9 @@ where
         num_shards: NonZeroUsize,
     ) -> Self {
         let num_shards = num_shards.get();
-        let mut shards =
-            orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
-        for _ in 0..num_shards {
-            shards.push(ConcurrentQueue::new());
+        let mut shards = [(); 32].map(|_| ConcurrentQueue::pseudo_default());
+        for i in 0..num_shards {
+            shards[i] = ConcurrentQueue::new();
         }
 
         let queue = ShardedQueue::from_shards(shards);

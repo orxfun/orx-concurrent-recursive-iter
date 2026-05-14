@@ -1,14 +1,15 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 use orx_concurrent_queue::{ConcurrentQueue, iter::QueueIterOwned};
-use orx_pinned_vec::{ConcurrentPinnedVec, PinnedVec};
-use orx_split_vec::SplitVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
+use orx_pseudo_default::PseudoDefault;
 
 pub(super) struct ShardedQueue<T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
-    shards: SplitVec<ConcurrentQueue<T, P>>,
+    shards: [ConcurrentQueue<T, P>; 32],
     push_cursor: AtomicUsize,
     pull_cursor: AtomicUsize,
     yielded_cursor: AtomicUsize,
@@ -18,14 +19,15 @@ impl<T, P> ShardedQueue<T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     pub(super) fn from_single(queue: ConcurrentQueue<T, P>) -> Self {
-        let mut shards = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
-        shards.push(queue);
+        let mut shards = [(); 32].map(|_| ConcurrentQueue::pseudo_default());
+        shards[0] = queue;
         Self::from_shards(shards)
     }
 
-    pub(super) fn from_shards(shards: SplitVec<ConcurrentQueue<T, P>>) -> Self {
+    pub(super) fn from_shards(shards: [ConcurrentQueue<T, P>; 32]) -> Self {
         assert!(
             !shards.is_empty(),
             "ShardedQueue requires at least one shard"

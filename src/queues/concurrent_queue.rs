@@ -1,11 +1,12 @@
 use crate::queues::backend_queue::BackendQueue;
 use orx_concurrent_queue::{ConcurrentQueue, iter::QueueIterOwned};
-use orx_pinned_vec::ConcurrentPinnedVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
 impl<T, P> BackendQueue<T> for ConcurrentQueue<T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     type PullIter<'a>
         = QueueIterOwned<'a, T, P>

@@ -1,12 +1,13 @@
 use crate::concurrent_recursive_iter_shards::queue::Queue;
 use orx_concurrent_queue::iter::QueueIterOwned;
-use orx_pinned_vec::ConcurrentPinnedVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
 pub struct DynChunk<'a, T, E, P>
 where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     chunk: QueueIterOwned<'a, T, P>,
     extend: &'a E,
@@ -18,6 +19,7 @@ where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     pub(super) fn new(
         chunk: QueueIterOwned<'a, T, P>,
@@ -37,6 +39,7 @@ where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     type Item = T;
 
@@ -60,6 +63,7 @@ where
     T: Send,
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     #[inline(always)]
     fn len(&self) -> usize {

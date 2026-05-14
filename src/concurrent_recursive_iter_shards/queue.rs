@@ -1,6 +1,6 @@
 use crate::concurrent_recursive_iter_shards::backend::ShardedQueue;
 use orx_concurrent_queue::DefaultConPinnedVec;
-use orx_pinned_vec::ConcurrentPinnedVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
 /// A queue of elements that will be returned by the [`ConcurrentRecursiveIter`].
 ///
@@ -21,6 +21,7 @@ pub struct Queue<'a, T, P = DefaultConPinnedVec<T>>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     queue: &'a ShardedQueue<T, P>,
     preferred_shard: Option<usize>,
@@ -30,6 +31,7 @@ impl<T, P> Queue<'_, T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     /// Pushes the `element` to the iterator, making it available to all threads as fast as possible.
     #[inline(always)]
@@ -61,6 +63,7 @@ impl<'a, T, P> From<&'a ShardedQueue<T, P>> for Queue<'a, T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     #[inline(always)]
     fn from(queue: &'a ShardedQueue<T, P>) -> Self {
@@ -75,6 +78,7 @@ impl<'a, T, P> Queue<'a, T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
+    P::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
 {
     #[inline(always)]
     pub(super) fn with_shard(queue: &'a ShardedQueue<T, P>, shard_idx: usize) -> Self {
