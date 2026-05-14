@@ -109,10 +109,6 @@ where
     }
 
     pub(super) fn pull(&self, chunk_size: usize) -> Option<(usize, QueueIterOwned<'_, T, P>)> {
-        if chunk_size == 0 {
-            return None;
-        }
-
         let num_shards = self.num_shards();
         let start = self.pull_cursor.fetch_add(1, Ordering::Relaxed) % num_shards;
 
