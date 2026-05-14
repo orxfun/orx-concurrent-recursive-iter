@@ -1,9 +1,10 @@
-use crate::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue};
+use crate::concurrent_recursive_iter_shards::{
+    backend::ShardedQueue, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue,
+};
 use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
-use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
-use orx_split_vec::SplitVec;
+use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec, PinnedVec};
 
 /// A recursive [`ConcurrentIter`] which:
 /// * naturally shrinks as we iterate,
@@ -108,7 +109,7 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
     E: Fn(&T, &Queue<T, P>) + Sync,
 {
-    queue: ConcurrentQueue<T, P>,
+    queue: ShardedQueue<T, P>,
     extend: E,
     exact_len: Option<usize>,
 }
@@ -122,7 +123,7 @@ where
 {
     fn from((queue, extend): (ConcurrentQueue<T, P>, E)) -> Self {
         Self {
-            queue,
+            queue: ShardedQueue::from_single(queue),
             extend,
             exact_len: None,
         }
@@ -138,7 +139,7 @@ where
 {
     fn from((queue, extend, exact_len): (ConcurrentQueue<T, P>, E, usize)) -> Self {
         Self {
-            queue,
+            queue: ShardedQueue::from_single(queue),
             extend,
             exact_len: Some(exact_len),
         }
@@ -249,10 +250,33 @@ where
     /// [`Doubling`]: orx_split_vec::Doubling
     /// [`Linear`]: orx_split_vec::Linear
     pub fn new(initial_elements: impl IntoIterator<Item = T>, extend: E) -> Self {
-        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
-        vec.extend(initial_elements);
-        let queue = vec.into();
-        (queue, extend).into()
+        Self::new_with_shards(initial_elements, extend, 1)
+    }
+
+    /// Creates a new recursive iterator with `num_shards` internal queues.
+    ///
+    /// Higher shard counts can reduce contention under high thread counts.
+    pub fn new_with_shards(
+        initial_elements: impl IntoIterator<Item = T>,
+        extend: E,
+        num_shards: usize,
+    ) -> Self {
+        let num_shards = num_shards.max(1);
+        let mut shards = orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        for _ in 0..num_shards {
+            shards.push(ConcurrentQueue::new());
+        }
+
+        let queue = ShardedQueue::from_shards(shards);
+        for element in initial_elements {
+            queue.push(element);
+        }
+
+        Self {
+            queue,
+            extend,
+            exact_len: None,
+        }
     }
 
     /// Creates a new dynamic concurrent iterator:
@@ -358,10 +382,33 @@ where
         extend: E,
         exact_len: usize,
     ) -> Self {
-        let mut vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
-        vec.extend(initial_elements);
-        let queue = vec.into();
-        (queue, extend, exact_len).into()
+        Self::new_exact_with_shards(initial_elements, extend, exact_len, 1)
+    }
+
+    /// Creates a new recursive iterator with `num_shards` internal queues
+    /// and an exact total length.
+    pub fn new_exact_with_shards(
+        initial_elements: impl IntoIterator<Item = T>,
+        extend: E,
+        exact_len: usize,
+        num_shards: usize,
+    ) -> Self {
+        let num_shards = num_shards.max(1);
+        let mut shards = orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        for _ in 0..num_shards {
+            shards.push(ConcurrentQueue::new());
+        }
+
+        let queue = ShardedQueue::from_shards(shards);
+        for element in initial_elements {
+            queue.push(element);
+        }
+
+        Self {
+            queue,
+            extend,
+            exact_len: Some(exact_len),
+        }
     }
 }
 
@@ -386,19 +433,18 @@ where
     }
 
     fn skip_to_end(&self) {
-        let len = self.queue.num_write_reserved(Ordering::Acquire);
-        let _remaining_to_drop = self.queue.pull(len);
+        self.queue.skip_to_end();
     }
 
     fn next(&self) -> Option<Self::Item> {
-        let n = self.queue.pop()?;
-        (self.extend)(&n, &Queue::from(&self.queue));
+        let (shard_idx, n) = self.queue.pop()?;
+        (self.extend)(&n, &Queue::with_shard(&self.queue, shard_idx));
         Some(n)
     }
 
     fn next_with_idx(&self) -> Option<(usize, Self::Item)> {
-        let (idx, n) = self.queue.pop_with_idx()?;
-        (self.extend)(&n, &Queue::from(&self.queue));
+        let (idx, shard_idx, n) = self.queue.pop_with_idx()?;
+        (self.extend)(&n, &Queue::with_shard(&self.queue, shard_idx));
         Some((idx, n))
     }
 

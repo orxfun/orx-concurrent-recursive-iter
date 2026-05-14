@@ -32,4 +32,5 @@ mod queues;
 pub use orx_concurrent_iter::*;
 
 pub use con_iter::ConcurrentRecursiveIter;
+pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
 pub use queue::Queue;

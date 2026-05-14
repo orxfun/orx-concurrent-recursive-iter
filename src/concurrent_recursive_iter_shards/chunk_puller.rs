@@ -1,6 +1,5 @@
-use crate::{chunk::DynChunk, queue::Queue};
+use crate::concurrent_recursive_iter_shards::{backend::ShardedQueue, chunk::DynChunk, queue::Queue};
 use orx_concurrent_iter::ChunkPuller;
-use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::ConcurrentPinnedVec;
 
 pub struct DynChunkPuller<'a, T, E, P>
@@ -10,7 +9,7 @@ where
     P: ConcurrentPinnedVec<T>,
 {
     extend: &'a E,
-    queue: &'a ConcurrentQueue<T, P>,
+    queue: &'a ShardedQueue<T, P>,
     chunk_size: usize,
 }
 
@@ -20,7 +19,7 @@ where
     E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
 {
-    pub(super) fn new(extend: &'a E, queue: &'a ConcurrentQueue<T, P>, chunk_size: usize) -> Self {
+    pub(super) fn new(extend: &'a E, queue: &'a ShardedQueue<T, P>, chunk_size: usize) -> Self {
         Self {
             extend,
             queue,
@@ -48,15 +47,19 @@ where
     }
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
-        let chunk = self.queue.pull(self.chunk_size)?;
-        Some(DynChunk::new(chunk, self.extend, self.queue.into()))
+        let (shard_idx, chunk) = self.queue.pull(self.chunk_size)?;
+        Some(DynChunk::new(
+            chunk,
+            self.extend,
+            Queue::with_shard(self.queue, shard_idx),
+        ))
     }
 
     fn pull_with_idx(&mut self) -> Option<(usize, Self::Chunk<'_>)> {
-        let (begin_idx, chunk) = self.queue.pull_with_idx(self.chunk_size)?;
+        let (begin_idx, shard_idx, chunk) = self.queue.pull_with_idx(self.chunk_size)?;
         Some((
             begin_idx,
-            DynChunk::new(chunk, self.extend, self.queue.into()),
+            DynChunk::new(chunk, self.extend, Queue::with_shard(self.queue, shard_idx)),
         ))
     }
 }

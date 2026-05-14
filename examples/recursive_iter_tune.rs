@@ -1,7 +1,9 @@
 // cargo run --release --example recursive_iter_tune
 
 use orx_concurrent_iter::ConcurrentIter;
-use orx_concurrent_recursive_iter::{ConcurrentRecursiveIter, Queue};
+use orx_concurrent_recursive_iter::{
+    ConcurrentRecursiveIter, ConcurrentRecursiveIterShards, Queue,
+};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{Scope, ThreadPool, ThreadPoolBuilder, scope};
@@ -82,6 +84,7 @@ enum Method {
     Seq,
     Rayon,
     RecIter,
+    RecIterShards,
     All,
 }
 
@@ -93,9 +96,10 @@ impl core::str::FromStr for Method {
             "seq" => Ok(Self::Seq),
             "rayon" => Ok(Self::Rayon),
             "reciter" => Ok(Self::RecIter),
+            "reciter-shards" => Ok(Self::RecIterShards),
             "all" => Ok(Self::All),
             _ => Err(format!(
-                "unknown method: {s}; expected one of seq|rayon|reciter|all"
+                "unknown method: {s}; expected one of seq|rayon|reciter|reciter-shards|all"
             )),
         }
     }
@@ -112,10 +116,15 @@ struct Args {
     repetitions: usize,
     warmup: usize,
     num_threads: usize,
+    num_shards: usize,
 }
 
 impl Default for Args {
     fn default() -> Self {
+        let num_threads = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1);
+
         Self {
             nodes: 40_000,
             roots: 50,
@@ -125,9 +134,8 @@ impl Default for Args {
             method: Method::All,
             repetitions: 5,
             warmup: 1,
-            num_threads: std::thread::available_parallelism()
-                .map(usize::from)
-                .unwrap_or(1),
+            num_threads,
+            num_shards: num_threads,
         }
     }
 }
@@ -152,6 +160,7 @@ impl Args {
                 "--repetitions" => args.repetitions = parse_usize("repetitions", &value),
                 "--warmup" => args.warmup = parse_usize("warmup", &value),
                 "--num-threads" => args.num_threads = parse_usize("num-threads", &value),
+                "--num-shards" => args.num_shards = parse_usize("num-shards", &value),
                 _ => panic!("unknown argument: {flag}"),
             }
         }
@@ -247,6 +256,45 @@ fn recursive_iter_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
     })
 }
 
+fn recursive_iter_shards_sum(
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    num_shards: usize,
+) -> u64 {
+    let iter = ConcurrentRecursiveIterShards::new_exact_with_shards(
+        fs.roots.iter().copied(),
+        |idx: &usize, queue| {
+            queue.extend(fs.nodes[*idx].children.iter().copied());
+        },
+        fs.nodes.len(),
+        num_shards,
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                while let Some(idx) = iter.next() {
+                    local_sum += fs.nodes[idx].compute_score(work);
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
 fn run_one(name: &str, reps: usize, mut f: impl FnMut() -> u64) -> (u64, f64, f64, f64) {
     let mut times_ms = Vec::with_capacity(reps);
     let mut last_sum = 0u64;
@@ -274,7 +322,7 @@ fn main() {
 
     println!("\nRecursive iterator tuning workload");
     println!(
-        "nodes={} roots={} max_children={} work={} seed={} reps={} warmup={} method={:?} num_threads={}",
+        "nodes={} roots={} max_children={} work={} seed={} reps={} warmup={} method={:?} num_threads={} num_shards={}",
         args.nodes,
         args.roots,
         args.max_children,
@@ -283,7 +331,8 @@ fn main() {
         args.repetitions,
         args.warmup,
         args.method,
-        args.num_threads
+        args.num_threads,
+        args.num_shards
     );
 
     let fs = FileSystem::generate(args.nodes, args.roots, args.max_children, args.seed);
@@ -292,10 +341,16 @@ fn main() {
     println!("baseline seq sum = {baseline}");
 
     let selected: &[Method] = match args.method {
-        Method::All => &[Method::Seq, Method::Rayon, Method::RecIter],
+        Method::All => &[
+            Method::Seq,
+            Method::Rayon,
+            Method::RecIter,
+            Method::RecIterShards,
+        ],
         Method::Seq => &[Method::Seq],
         Method::Rayon => &[Method::Rayon],
         Method::RecIter => &[Method::RecIter],
+        Method::RecIterShards => &[Method::RecIterShards],
     };
 
     let rayon_pool = selected
@@ -320,6 +375,9 @@ fn main() {
                         .unwrap_or_else(|| panic!("rayon thread pool must exist for rayon method")),
                 ),
                 Method::RecIter => recursive_iter_sum(&fs, args.work, args.num_threads),
+                Method::RecIterShards => {
+                    recursive_iter_shards_sum(&fs, args.work, args.num_threads, args.num_shards)
+                }
                 Method::All => unreachable!(),
             };
         }
@@ -343,6 +401,9 @@ fn main() {
             Method::RecIter => run_one("recursive-iter", args.repetitions, || {
                 recursive_iter_sum(&fs, args.work, args.num_threads)
             }),
+            Method::RecIterShards => run_one("reciter-shards", args.repetitions, || {
+                recursive_iter_shards_sum(&fs, args.work, args.num_threads, args.num_shards)
+            }),
             Method::All => unreachable!(),
         };
 
@@ -360,8 +421,9 @@ fn main() {
     println!("  --max-children <usize>");
     println!("  --work <usize>");
     println!("  --seed <u64>");
-    println!("  --method <seq|rayon|reciter|all>");
+    println!("  --method <seq|rayon|reciter|reciter-shards|all>");
     println!("  --repetitions <usize>");
     println!("  --warmup <usize>");
     println!("  --num-threads <usize>");
+    println!("  --num-shards <usize>");
 }

@@ -1,6 +1,5 @@
-use crate::queue::Queue;
+use crate::concurrent_recursive_iter_shards::{backend::ShardedQueue, queue::Queue};
 use core::iter::FusedIterator;
-use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
 
 pub struct DynSeqQueue<T, P, E>
@@ -10,7 +9,7 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
     E: Fn(&T, &Queue<T, P>) + Sync,
 {
-    queue: ConcurrentQueue<T, P>,
+    queue: ShardedQueue<T, P>,
     extend: E,
 }
 
@@ -21,7 +20,7 @@ where
     <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
     E: Fn(&T, &Queue<T, P>) + Sync,
 {
-    pub(super) fn new(queue: ConcurrentQueue<T, P>, extend: E) -> Self {
+    pub(super) fn new(queue: ShardedQueue<T, P>, extend: E) -> Self {
         Self { queue, extend }
     }
 }
@@ -36,9 +35,9 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.queue
-            .pop()
-            .inspect(|element| (self.extend)(element, &Queue::from(&self.queue)))
+        let (shard_idx, element) = self.queue.pop()?;
+        (self.extend)(&element, &Queue::with_shard(&self.queue, shard_idx));
+        Some(element)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

@@ -1,4 +1,5 @@
-use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
+use crate::concurrent_recursive_iter_shards::backend::ShardedQueue;
+use orx_concurrent_queue::DefaultConPinnedVec;
 use orx_pinned_vec::ConcurrentPinnedVec;
 
 /// A queue of elements that will be returned by the [`ConcurrentRecursiveIter`].
@@ -21,7 +22,8 @@ where
     T: Send,
     P: ConcurrentPinnedVec<T>,
 {
-    queue: &'a ConcurrentQueue<T, P>,
+    queue: &'a ShardedQueue<T, P>,
+    preferred_shard: Option<usize>,
 }
 
 impl<T, P> Queue<'_, T, P>
@@ -32,7 +34,10 @@ where
     /// Pushes the `element` to the iterator, making it available to all threads as fast as possible.
     #[inline(always)]
     pub fn push(&self, element: T) {
-        self.queue.push(element);
+        match self.preferred_shard {
+            Some(shard_idx) => self.queue.push_to_shard(shard_idx, element),
+            None => self.queue.push(element),
+        }
     }
 
     /// Pushes all `elements` to the iterator with a single update on the concurrent state.
@@ -45,17 +50,37 @@ where
         I: IntoIterator<Item = T>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.queue.extend(elements);
+        match self.preferred_shard {
+            Some(shard_idx) => self.queue.extend_to_shard(shard_idx, elements),
+            None => self.queue.extend(elements),
+        }
     }
 }
 
-impl<'a, T, P> From<&'a ConcurrentQueue<T, P>> for Queue<'a, T, P>
+impl<'a, T, P> From<&'a ShardedQueue<T, P>> for Queue<'a, T, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
 {
     #[inline(always)]
-    fn from(queue: &'a ConcurrentQueue<T, P>) -> Self {
-        Self { queue }
+    fn from(queue: &'a ShardedQueue<T, P>) -> Self {
+        Self {
+            queue,
+            preferred_shard: None,
+        }
+    }
+}
+
+impl<'a, T, P> Queue<'a, T, P>
+where
+    T: Send,
+    P: ConcurrentPinnedVec<T>,
+{
+    #[inline(always)]
+    pub(super) fn with_shard(queue: &'a ShardedQueue<T, P>, shard_idx: usize) -> Self {
+        Self {
+            queue,
+            preferred_shard: Some(shard_idx),
+        }
     }
 }
