@@ -267,6 +267,24 @@ fn recursive_iter_scaling(c: &mut Criterion) {
         );
     }
     shards_group.finish();
+
+    let mut shards_div8_group = c.benchmark_group("recursive-iter/sharded-div8");
+    shards_div8_group.sample_size(10);
+    for threads in THREADS {
+        let shards = (threads / 8).max(1);
+        shards_div8_group.bench_with_input(
+            BenchmarkId::new("threads-shards", format!("{threads}-{shards}")),
+            &(threads, shards),
+            |b, &(t, s)| {
+                b.iter(|| {
+                    let value = recursive_iter_shards_sum(&fs, work, t, s);
+                    assert_eq!(value, expected);
+                    black_box(value);
+                });
+            },
+        );
+    }
+    shards_div8_group.finish();
 }
 
 criterion_group!(benches, recursive_iter_scaling);
