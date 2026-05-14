@@ -199,6 +199,52 @@ fn recursive_iter_shards_sum(
     })
 }
 
+fn recursive_iter_shards_sum_chunk64(
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    num_shards: usize,
+) -> u64 {
+    let num_shards = NonZeroUsize::new(num_shards)
+        .unwrap_or_else(|| panic!("num_shards must be greater than zero"));
+
+    let iter = ConcurrentRecursiveIterShards::new_exact_with_shards(
+        fs.roots.iter().copied(),
+        |idx: &usize, queue| {
+            queue.extend(fs.nodes[*idx].children.iter().copied());
+        },
+        fs.nodes.len(),
+        num_shards,
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                let mut puller = iter.chunk_puller(64);
+                while let Some(chunk) = puller.pull() {
+                    local_sum += chunk
+                        .into_iter()
+                        .map(|idx| fs.nodes[idx].compute_score(work))
+                        .sum::<u64>();
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
 #[derive(Clone)]
 struct Input {
     num_threads: usize,
@@ -222,6 +268,10 @@ impl Factors for Input {
             self.work.to_string(),
         ]
     }
+
+    fn factor_names_short() -> Vec<&'static str> {
+        vec!["nt", "n", "r", "w"]
+    }
 }
 
 #[derive(Debug, Sequence)]
@@ -231,6 +281,8 @@ enum Method {
     RecIter,
     RecIterShards1,
     RecIterShards8,
+    RecIterShards1Chunk64,
+    RecIterShards8Chunk64,
 }
 
 impl Factors for Method {
@@ -246,6 +298,23 @@ impl Factors for Method {
                 Self::RecIter => "orx",
                 Self::RecIterShards1 => "orx-s1",
                 Self::RecIterShards8 => "orx-s8",
+                Self::RecIterShards1Chunk64 => "orx-s1-c64",
+                Self::RecIterShards8Chunk64 => "orx-s8-c64",
+            }
+            .to_string(),
+        ]
+    }
+
+    fn factor_levels_short(&self) -> Vec<String> {
+        vec![
+            match self {
+                Self::Seq => "s",
+                Self::Rayon => "r",
+                Self::RecIter => "o",
+                Self::RecIterShards1 => "o-s1",
+                Self::RecIterShards8 => "o-s8",
+                Self::RecIterShards1Chunk64 => "o-s1-c64",
+                Self::RecIterShards8Chunk64 => "o-s8-c64",
             }
             .to_string(),
         ]
@@ -296,6 +365,21 @@ impl Experiment for Exp {
             Method::RecIterShards8 => {
                 let num_shards = (input_variant.num_threads / 8).max(1);
                 recursive_iter_shards_sum(
+                    input,
+                    input_variant.work,
+                    input_variant.num_threads,
+                    num_shards,
+                )
+            }
+            Method::RecIterShards1Chunk64 => recursive_iter_shards_sum_chunk64(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+                input_variant.num_threads,
+            ),
+            Method::RecIterShards8Chunk64 => {
+                let num_shards = (input_variant.num_threads / 8).max(1);
+                recursive_iter_shards_sum_chunk64(
                     input,
                     input_variant.work,
                     input_variant.num_threads,
