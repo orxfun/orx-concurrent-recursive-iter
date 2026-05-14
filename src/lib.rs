@@ -25,6 +25,7 @@ mod chunk_puller;
 mod con_iter;
 mod dyn_seq_queue;
 mod queue;
+mod queues;
 
 // re-import
 pub use orx_concurrent_iter::*;
