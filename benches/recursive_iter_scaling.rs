@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use enum_iterator::{Sequence, all};
-use orx_concurrent_iter::ConcurrentIter;
+use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
     ConcurrentRecursiveIter, ConcurrentRecursiveIterShards, Queue,
 };
@@ -244,8 +244,8 @@ impl Factors for Method {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
                 Self::RecIter => "orx",
-                Self::RecIterShards1 => "orx-sh1",
-                Self::RecIterShards8 => "orx-sh8",
+                Self::RecIterShards1 => "orx-s1",
+                Self::RecIterShards8 => "orx-s8",
             }
             .to_string(),
         ]
