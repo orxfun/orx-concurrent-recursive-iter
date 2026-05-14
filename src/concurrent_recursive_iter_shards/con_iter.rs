@@ -1,6 +1,7 @@
 use crate::concurrent_recursive_iter_shards::{
     backend::ShardedQueue, chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue,
 };
+use core::num::NonZeroUsize;
 use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
@@ -250,7 +251,7 @@ where
     /// [`Doubling`]: orx_split_vec::Doubling
     /// [`Linear`]: orx_split_vec::Linear
     pub fn new(initial_elements: impl IntoIterator<Item = T>, extend: E) -> Self {
-        Self::new_with_shards(initial_elements, extend, 1)
+        Self::new_with_shards(initial_elements, extend, NonZeroUsize::MIN)
     }
 
     /// Creates a new recursive iterator with `num_shards` internal queues.
@@ -259,10 +260,11 @@ where
     pub fn new_with_shards(
         initial_elements: impl IntoIterator<Item = T>,
         extend: E,
-        num_shards: usize,
+        num_shards: NonZeroUsize,
     ) -> Self {
-        let num_shards = num_shards.max(1);
-        let mut shards = orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        let num_shards = num_shards.get();
+        let mut shards =
+            orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
         for _ in 0..num_shards {
             shards.push(ConcurrentQueue::new());
         }
@@ -382,7 +384,7 @@ where
         extend: E,
         exact_len: usize,
     ) -> Self {
-        Self::new_exact_with_shards(initial_elements, extend, exact_len, 1)
+        Self::new_exact_with_shards(initial_elements, extend, exact_len, NonZeroUsize::MIN)
     }
 
     /// Creates a new recursive iterator with `num_shards` internal queues
@@ -391,10 +393,11 @@ where
         initial_elements: impl IntoIterator<Item = T>,
         extend: E,
         exact_len: usize,
-        num_shards: usize,
+        num_shards: NonZeroUsize,
     ) -> Self {
-        let num_shards = num_shards.max(1);
-        let mut shards = orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
+        let num_shards = num_shards.get();
+        let mut shards =
+            orx_split_vec::SplitVec::with_doubling_growth_and_max_concurrent_capacity();
         for _ in 0..num_shards {
             shards.push(ConcurrentQueue::new());
         }

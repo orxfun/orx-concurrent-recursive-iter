@@ -7,6 +7,7 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{Scope, ThreadPool, ThreadPoolBuilder, scope};
 use std::hint::black_box;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 const THREADS: [usize; 4] = [8, 16, 24, 32];
@@ -161,6 +162,9 @@ fn recursive_iter_shards_sum(
     num_threads: usize,
     num_shards: usize,
 ) -> u64 {
+    let num_shards = NonZeroUsize::new(num_shards)
+        .unwrap_or_else(|| panic!("num_shards must be greater than zero"));
+
     let iter = ConcurrentRecursiveIterShards::new_exact_with_shards(
         fs.roots.iter().copied(),
         |idx: &usize, queue| {

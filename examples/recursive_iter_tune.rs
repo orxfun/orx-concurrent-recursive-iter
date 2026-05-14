@@ -7,6 +7,7 @@ use orx_concurrent_recursive_iter::{
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{Scope, ThreadPool, ThreadPoolBuilder, scope};
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
 
@@ -262,6 +263,9 @@ fn recursive_iter_shards_sum(
     num_threads: usize,
     num_shards: usize,
 ) -> u64 {
+    let num_shards = NonZeroUsize::new(num_shards)
+        .unwrap_or_else(|| panic!("--num-shards must be greater than zero"));
+
     let iter = ConcurrentRecursiveIterShards::new_exact_with_shards(
         fs.roots.iter().copied(),
         |idx: &usize, queue| {

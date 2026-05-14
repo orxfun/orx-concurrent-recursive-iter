@@ -26,36 +26,33 @@ where
     }
 
     pub(super) fn from_shards(shards: SplitVec<ConcurrentQueue<T, P>>) -> Self {
-        let num_shards = shards.len().max(1);
+        assert!(
+            !shards.is_empty(),
+            "ShardedQueue requires at least one shard"
+        );
+
         Self {
             shards,
             push_cursor: AtomicUsize::new(0),
             pull_cursor: AtomicUsize::new(0),
             yielded_cursor: AtomicUsize::new(0),
         }
-        .with_non_empty_shards(num_shards)
-    }
-
-    fn with_non_empty_shards(self, num_shards: usize) -> Self {
-        if self.shards.is_empty() {
-            panic!("ShardedQueue requires at least one shard; got {num_shards}");
-        }
-        self
     }
 
     #[inline(always)]
     pub(super) fn num_shards(&self) -> usize {
+        debug_assert!(!self.shards.is_empty());
         self.shards.len()
     }
 
     #[inline(always)]
     fn normalized_shard_idx(&self, shard_idx: usize) -> usize {
-        shard_idx % self.num_shards().max(1)
+        shard_idx % self.num_shards()
     }
 
     #[inline(always)]
     fn next_push_shard(&self) -> usize {
-        self.push_cursor.fetch_add(1, Ordering::Relaxed) % self.num_shards().max(1)
+        self.push_cursor.fetch_add(1, Ordering::Relaxed) % self.num_shards()
     }
 
     #[inline(always)]
