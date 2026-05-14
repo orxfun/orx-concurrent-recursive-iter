@@ -23,6 +23,7 @@ mod tests;
 mod chunk;
 mod chunk_puller;
 mod con_iter;
+mod concurrent_recursive_iter_shards;
 mod dyn_seq_queue;
 mod queue;
 mod queues;
