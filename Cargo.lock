@@ -265,6 +265,7 @@ name = "orx-concurrent-recursive-iter"
 version = "2.0.0"
 dependencies = [
  "criterion",
+ "crossbeam-deque",
  "orx-concurrent-bag",
  "orx-concurrent-iter",
  "orx-concurrent-queue",
