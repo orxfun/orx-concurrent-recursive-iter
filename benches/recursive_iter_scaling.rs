@@ -1,12 +1,13 @@
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+use enum_iterator::{Sequence, all};
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_recursive_iter::{
     ConcurrentRecursiveIter, ConcurrentRecursiveIterShards, Queue,
 };
+use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{Scope, ThreadPool, ThreadPoolBuilder, scope};
-use std::hint::black_box;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
@@ -23,11 +24,11 @@ impl DirNode {
     fn compute_score(&self, work: usize) -> u64 {
         (0..work)
             .map(|j| {
-                let n = black_box(((self.id + self.file_count + j) % 35) as u64);
+                let n = core::hint::black_box(((self.id + self.file_count + j) % 35) as u64);
                 let mut a = 0u64;
                 let mut b = 1u64;
                 for _ in 0..n {
-                    let c = black_box(a + b);
+                    let c = core::hint::black_box(a + b);
                     a = b;
                     b = c;
                 }
@@ -198,94 +199,140 @@ fn recursive_iter_shards_sum(
     })
 }
 
-fn recursive_iter_scaling(c: &mut Criterion) {
-    let nodes = 40_000;
-    let roots = 100;
-    let max_children = 8;
-    let work = 300;
-    let seed = 42;
-
-    let fs = FileSystem::generate(nodes, roots, max_children, seed);
-    let expected = seq_sum(&fs, work);
-
-    let mut seq_group = c.benchmark_group("recursive-iter/seq");
-    seq_group.sample_size(10);
-    seq_group.bench_function("sequential", |b| {
-        b.iter(|| {
-            let value = seq_sum(&fs, work);
-            assert_eq!(value, expected);
-            black_box(value);
-        });
-    });
-    seq_group.finish();
-
-    let mut rayon_group = c.benchmark_group("recursive-iter/rayon");
-    rayon_group.sample_size(10);
-    for threads in THREADS {
-        let pool = ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build()
-            .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
-
-        rayon_group.bench_with_input(BenchmarkId::from_parameter(threads), &threads, |b, _| {
-            b.iter(|| {
-                let value = rayon_sum(&fs, work, &pool);
-                assert_eq!(value, expected);
-                black_box(value);
-            });
-        });
-    }
-    rayon_group.finish();
-
-    let mut reciter_group = c.benchmark_group("recursive-iter/original");
-    reciter_group.sample_size(10);
-    for threads in THREADS {
-        reciter_group.bench_with_input(BenchmarkId::from_parameter(threads), &threads, |b, &t| {
-            b.iter(|| {
-                let value = recursive_iter_sum(&fs, work, t);
-                assert_eq!(value, expected);
-                black_box(value);
-            });
-        });
-    }
-    reciter_group.finish();
-
-    let mut shards_group = c.benchmark_group("recursive-iter/sharded");
-    shards_group.sample_size(10);
-    for threads in THREADS {
-        let shards = threads;
-        shards_group.bench_with_input(
-            BenchmarkId::new("threads-shards", format!("{threads}-{shards}")),
-            &(threads, shards),
-            |b, &(t, s)| {
-                b.iter(|| {
-                    let value = recursive_iter_shards_sum(&fs, work, t, s);
-                    assert_eq!(value, expected);
-                    black_box(value);
-                });
-            },
-        );
-    }
-    shards_group.finish();
-
-    let mut shards_div8_group = c.benchmark_group("recursive-iter/sharded-div8");
-    shards_div8_group.sample_size(10);
-    for threads in THREADS {
-        let shards = (threads / 8).max(1);
-        shards_div8_group.bench_with_input(
-            BenchmarkId::new("threads-shards", format!("{threads}-{shards}")),
-            &(threads, shards),
-            |b, &(t, s)| {
-                b.iter(|| {
-                    let value = recursive_iter_shards_sum(&fs, work, t, s);
-                    assert_eq!(value, expected);
-                    black_box(value);
-                });
-            },
-        );
-    }
-    shards_div8_group.finish();
+#[derive(Clone)]
+struct Input {
+    num_threads: usize,
+    nodes: usize,
+    roots: usize,
+    max_children: usize,
+    work: usize,
+    seed: u64,
 }
 
-criterion_group!(benches, recursive_iter_scaling);
+impl Factors for Input {
+    fn factor_names() -> Vec<&'static str> {
+        vec!["threads", "nodes", "roots", "work"]
+    }
+
+    fn factor_levels(&self) -> Vec<String> {
+        vec![
+            self.num_threads.to_string(),
+            self.nodes.to_string(),
+            self.roots.to_string(),
+            self.work.to_string(),
+        ]
+    }
+}
+
+#[derive(Debug, Sequence)]
+enum Method {
+    Seq,
+    Rayon,
+    RecIter,
+    RecIterShards,
+    RecIterShardsDiv8,
+}
+
+impl Factors for Method {
+    fn factor_names() -> Vec<&'static str> {
+        vec!["method"]
+    }
+
+    fn factor_levels(&self) -> Vec<String> {
+        vec![
+            match self {
+                Self::Seq => "seq",
+                Self::Rayon => "rayon",
+                Self::RecIter => "reciter",
+                Self::RecIterShards => "reciter-shards",
+                Self::RecIterShardsDiv8 => "reciter-shards-div8",
+            }
+            .to_string(),
+        ]
+    }
+}
+
+struct Exp;
+
+impl Experiment for Exp {
+    type InputFactors = Input;
+    type AlgFactors = Method;
+    type Input = FileSystem;
+    type Output = u64;
+
+    fn input(&mut self, input_variant: &Self::InputFactors) -> Self::Input {
+        FileSystem::generate(
+            input_variant.nodes,
+            input_variant.roots,
+            input_variant.max_children,
+            input_variant.seed,
+        )
+    }
+
+    fn execute(
+        &mut self,
+        input_variant: &Self::InputFactors,
+        alg_variant: &Self::AlgFactors,
+        input: &Self::Input,
+    ) -> Self::Output {
+        match alg_variant {
+            Method::Seq => seq_sum(input, input_variant.work),
+            Method::Rayon => {
+                let pool = ThreadPoolBuilder::new()
+                    .num_threads(input_variant.num_threads)
+                    .build()
+                    .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
+                rayon_sum(input, input_variant.work, &pool)
+            }
+            Method::RecIter => {
+                recursive_iter_sum(input, input_variant.work, input_variant.num_threads)
+            }
+            Method::RecIterShards => recursive_iter_shards_sum(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+                input_variant.num_threads,
+            ),
+            Method::RecIterShardsDiv8 => {
+                let num_shards = (input_variant.num_threads / 8).max(1);
+                recursive_iter_shards_sum(
+                    input,
+                    input_variant.work,
+                    input_variant.num_threads,
+                    num_shards,
+                )
+            }
+        }
+    }
+
+    fn validate_output(
+        &self,
+        input_variant: &Self::InputFactors,
+        input: &Self::Input,
+        output: &Self::Output,
+    ) {
+        let expected = seq_sum(input, input_variant.work);
+        assert_eq!(expected, *output);
+    }
+}
+
+fn run(c: &mut Criterion) {
+    let treatments: Vec<_> = THREADS
+        .iter()
+        .map(|&num_threads| Input {
+            num_threads,
+            nodes: 40_000,
+            roots: 100,
+            max_children: 8,
+            work: 300,
+            seed: 42,
+        })
+        .collect();
+
+    let variants: Vec<_> = all::<Method>().collect();
+
+    Exp.bench(c, "recursive_iter_scaling", &treatments, &variants);
+}
+
+criterion_group!(benches, run);
 criterion_main!(benches);
