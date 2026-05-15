@@ -2,7 +2,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use enum_iterator::{Sequence, all};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIter, ConcurrentRecursiveIterShards, Queue,
+    ConcurrentIterCross, ConcurrentRecursiveIter, ConcurrentRecursiveIterShards,
+    ConcurrentRecursiveIterShards2, Queue,
 };
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
@@ -245,6 +246,57 @@ fn recursive_iter_shards_sum_chunk64(
     })
 }
 
+fn recursive_iter_shards2_sum(
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    num_shards: usize,
+) -> u64 {
+    let iter = ConcurrentRecursiveIterShards2::new_exact_with_shards(
+        fs.roots.iter().copied(),
+        |idx: &usize, queue| {
+            queue.extend(fs.nodes[*idx].children.iter().copied());
+        },
+        fs.nodes.len(),
+        num_shards,
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                while let Some(idx) = iter.next() {
+                    local_sum += fs.nodes[idx].compute_score(work);
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
+fn crossbeam_iter_cross_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCross::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    iter.run_with_threads(num_threads, |idx: &usize| {
+        fs.nodes[*idx].compute_score(work)
+    })
+}
+
 #[derive(Clone)]
 struct Input {
     num_threads: usize,
@@ -283,6 +335,9 @@ enum Method {
     RecIterShards8,
     RecIterShards1Chunk64,
     RecIterShards8Chunk64,
+    RecIterShards2_1,
+    RecIterShards2_2,
+    CrossbeamDeque,
 }
 
 impl Factors for Method {
@@ -300,6 +355,9 @@ impl Factors for Method {
                 Self::RecIterShards8 => "orx-s8",
                 Self::RecIterShards1Chunk64 => "orx-s1-c64",
                 Self::RecIterShards8Chunk64 => "orx-s8-c64",
+                Self::RecIterShards2_1 => "orx2-s1",
+                Self::RecIterShards2_2 => "orx2-s2",
+                Self::CrossbeamDeque => "cb",
             }
             .to_string(),
         ]
@@ -315,6 +373,9 @@ impl Factors for Method {
                 Self::RecIterShards8 => "o-s8",
                 Self::RecIterShards1Chunk64 => "o-s1-c64",
                 Self::RecIterShards8Chunk64 => "o-s8-c64",
+                Self::RecIterShards2_1 => "o2-s1",
+                Self::RecIterShards2_2 => "o2-s2",
+                Self::CrossbeamDeque => "cb",
             }
             .to_string(),
         ]
@@ -385,6 +446,15 @@ impl Experiment for Exp {
                     input_variant.num_threads,
                     num_shards,
                 )
+            }
+            Method::RecIterShards2_1 => {
+                recursive_iter_shards2_sum(input, input_variant.work, input_variant.num_threads, 1)
+            }
+            Method::RecIterShards2_2 => {
+                recursive_iter_shards2_sum(input, input_variant.work, input_variant.num_threads, 2)
+            }
+            Method::CrossbeamDeque => {
+                crossbeam_iter_cross_sum(input, input_variant.work, input_variant.num_threads)
             }
         }
     }

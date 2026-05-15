@@ -269,7 +269,7 @@ where
             shards[i] = ConcurrentQueue::new();
         }
 
-        let queue = ShardedQueue::from_shards(shards);
+        let queue = ShardedQueue::from_shards(num_shards, shards);
         for element in initial_elements {
             queue.push(element);
         }
@@ -401,7 +401,7 @@ where
             shards[i] = ConcurrentQueue::new();
         }
 
-        let queue = ShardedQueue::from_shards(shards);
+        let queue = ShardedQueue::from_shards(num_shards, shards);
         for element in initial_elements {
             queue.push(element);
         }
