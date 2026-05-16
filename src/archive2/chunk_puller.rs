@@ -1,4 +1,4 @@
-use crate::{chunk::DynChunk, queue::Queue};
+use crate::archive2::{chunk::DynChunk, queue::Queue};
 use orx_concurrent_iter::ChunkPuller;
 use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::ConcurrentPinnedVec;

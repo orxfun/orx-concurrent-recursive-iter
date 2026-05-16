@@ -23,6 +23,7 @@ extern crate alloc;
 // mod chunk;
 // mod chunk_puller;
 // mod con_iter;
+mod archive2;
 mod concurrent_iter_cross;
 mod concurrent_iter_cross_seg;
 mod concurrent_recursive_iter_shards;

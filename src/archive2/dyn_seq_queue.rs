@@ -1,4 +1,4 @@
-use crate::queue::Queue;
+use crate::archive2::queue::Queue;
 use core::iter::FusedIterator;
 use orx_concurrent_queue::ConcurrentQueue;
 use orx_pinned_vec::{ConcurrentPinnedVec, IntoConcurrentPinnedVec};
