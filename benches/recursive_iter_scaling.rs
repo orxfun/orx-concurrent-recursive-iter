@@ -2,8 +2,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use enum_iterator::{Sequence, all};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
-    ConcurrentIterCross, ConcurrentRecursiveIter, ConcurrentRecursiveIterShards,
-    ConcurrentRecursiveIterShards2, Queue,
+    ConcurrentIterCross, ConcurrentIterCrossSeg, ConcurrentRecursiveIter,
+    ConcurrentRecursiveIterShards, ConcurrentRecursiveIterShards2, Queue,
 };
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
@@ -297,6 +297,18 @@ fn crossbeam_iter_cross_sum(fs: &FileSystem, work: usize, num_threads: usize) ->
     })
 }
 
+fn crossbeam_iter_cross_seg_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCrossSeg::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    iter.run_with_threads(num_threads, |idx: &usize| {
+        fs.nodes[*idx].compute_score(work)
+    })
+}
+
 #[derive(Clone)]
 struct Input {
     num_threads: usize,
@@ -338,6 +350,7 @@ enum Method {
     RecIterShards2_1,
     RecIterShards2_2,
     CrossbeamDeque,
+    CrossbeamSegQueue,
 }
 
 impl Factors for Method {
@@ -358,6 +371,7 @@ impl Factors for Method {
                 Self::RecIterShards2_1 => "orx2-s1",
                 Self::RecIterShards2_2 => "orx2-s2",
                 Self::CrossbeamDeque => "cb",
+                Self::CrossbeamSegQueue => "cbq",
             }
             .to_string(),
         ]
@@ -376,6 +390,7 @@ impl Factors for Method {
                 Self::RecIterShards2_1 => "o2-s1",
                 Self::RecIterShards2_2 => "o2-s2",
                 Self::CrossbeamDeque => "cb",
+                Self::CrossbeamSegQueue => "cbq",
             }
             .to_string(),
         ]
@@ -455,6 +470,9 @@ impl Experiment for Exp {
             }
             Method::CrossbeamDeque => {
                 crossbeam_iter_cross_sum(input, input_variant.work, input_variant.num_threads)
+            }
+            Method::CrossbeamSegQueue => {
+                crossbeam_iter_cross_seg_sum(input, input_variant.work, input_variant.num_threads)
             }
         }
     }

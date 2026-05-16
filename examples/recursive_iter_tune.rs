@@ -2,7 +2,8 @@
 
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_recursive_iter::{
-    ConcurrentIterCross, ConcurrentRecursiveIter, ConcurrentRecursiveIterShards, Queue,
+    ConcurrentIterCross, ConcurrentIterCrossSeg, ConcurrentRecursiveIter,
+    ConcurrentRecursiveIterShards, Queue,
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -87,6 +88,7 @@ enum Method {
     RecIter,
     RecIterShards,
     CrossbeamDeque,
+    CrossbeamSegQueue,
     All,
 }
 
@@ -100,9 +102,10 @@ impl core::str::FromStr for Method {
             "reciter" => Ok(Self::RecIter),
             "reciter-shards" => Ok(Self::RecIterShards),
             "crossbeam" => Ok(Self::CrossbeamDeque),
+            "crossbeam-seg" => Ok(Self::CrossbeamSegQueue),
             "all" => Ok(Self::All),
             _ => Err(format!(
-                "unknown method: {s}; expected one of seq|rayon|reciter|reciter-shards|crossbeam|all"
+                "unknown method: {s}; expected one of seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-seg|all"
             )),
         }
     }
@@ -313,6 +316,18 @@ fn crossbeam_iter_cross_sum(fs: &FileSystem, work: usize, num_threads: usize) ->
     })
 }
 
+fn crossbeam_iter_cross_seg_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCrossSeg::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    iter.run_with_threads(num_threads, |idx: &usize| {
+        fs.nodes[*idx].compute_score(work)
+    })
+}
+
 fn run_one(name: &str, reps: usize, mut f: impl FnMut() -> u64) -> (u64, f64, f64, f64) {
     let mut times_ms = Vec::with_capacity(reps);
     let mut last_sum = 0u64;
@@ -365,12 +380,14 @@ fn main() {
             Method::RecIter,
             Method::RecIterShards,
             Method::CrossbeamDeque,
+            Method::CrossbeamSegQueue,
         ],
         Method::Seq => &[Method::Seq],
         Method::Rayon => &[Method::Rayon],
         Method::RecIter => &[Method::RecIter],
         Method::RecIterShards => &[Method::RecIterShards],
         Method::CrossbeamDeque => &[Method::CrossbeamDeque],
+        Method::CrossbeamSegQueue => &[Method::CrossbeamSegQueue],
     };
 
     let rayon_pool = selected
@@ -401,6 +418,9 @@ fn main() {
                 Method::CrossbeamDeque => {
                     crossbeam_iter_cross_sum(&fs, args.work, args.num_threads)
                 }
+                Method::CrossbeamSegQueue => {
+                    crossbeam_iter_cross_seg_sum(&fs, args.work, args.num_threads)
+                }
                 Method::All => unreachable!(),
             };
         }
@@ -430,6 +450,9 @@ fn main() {
             Method::CrossbeamDeque => run_one("crossbeam-deque", args.repetitions, || {
                 crossbeam_iter_cross_sum(&fs, args.work, args.num_threads)
             }),
+            Method::CrossbeamSegQueue => run_one("crossbeam-segqueue", args.repetitions, || {
+                crossbeam_iter_cross_seg_sum(&fs, args.work, args.num_threads)
+            }),
             Method::All => unreachable!(),
         };
 
@@ -447,7 +470,7 @@ fn main() {
     println!("  --max-children <usize>");
     println!("  --work <usize>");
     println!("  --seed <u64>");
-    println!("  --method <seq|rayon|reciter|reciter-shards|crossbeam|all>");
+    println!("  --method <seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-seg|all>");
     println!("  --repetitions <usize>");
     println!("  --warmup <usize>");
     println!("  --num-threads <usize>");
