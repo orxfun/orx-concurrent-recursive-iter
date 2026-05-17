@@ -62,6 +62,7 @@ where
     }
 
     fn choose_local_idx(num_locals: usize) -> usize {
+        todo!(); // currently should be used by example & benchmark
         if num_locals <= 1 {
             return 0;
         }
