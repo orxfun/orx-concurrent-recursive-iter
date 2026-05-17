@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+use crate::new_con_iter::NewConcurrentIter;
+
 /// Refined recursive concurrent iterator using crossbeam injector + work stealing.
 ///
 /// This iterator is designed to be consumed through the generic [`ConcurrentIter`]
@@ -47,6 +49,7 @@ where
 {
     iter: &'a Con1<T, E>,
     chunk_size: usize,
+    thread_idx: Option<usize>,
 }
 
 impl<T, E> Con1<T, E>
@@ -124,12 +127,16 @@ where
         pending: &AtomicUsize,
         popped: &AtomicUsize,
         stopped: &AtomicBool,
+        local_idx: Option<usize>,
     ) -> Option<(usize, T)> {
         if stopped.load(Ordering::Acquire) {
             return None;
         }
 
-        let local_idx = Self::choose_local_idx(locals.len());
+        let local_idx = match local_idx {
+            Some(x) => x,
+            None => Self::choose_local_idx(locals.len()),
+        };
 
         let item = {
             let local = locals[local_idx].lock().expect("local worker poisoned");
@@ -237,6 +244,7 @@ where
             &self.pending,
             &self.popped,
             &self.stopped,
+            Some(0),
         )
         .map(|(_, x)| x)
     }
@@ -275,18 +283,32 @@ where
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
         let mut chunk = Vec::with_capacity(self.chunk_size);
-        for _ in 0..self.chunk_size {
-            if let Some(item) = ConcurrentIter::next(self.iter) {
-                chunk.push(item);
-            } else {
-                break;
+        match self.thread_idx {
+            Some(thread_idx) => {
+                for _ in 0..self.chunk_size {
+                    if let Some(item) =
+                        NewConcurrentIter::next_with_thread_idx(self.iter, thread_idx)
+                    {
+                        chunk.push(item);
+                    } else {
+                        break;
+                    }
+                }
+            }
+            None => {
+                for _ in 0..self.chunk_size {
+                    if let Some(item) = ConcurrentIter::next(self.iter) {
+                        chunk.push(item);
+                    } else {
+                        break;
+                    }
+                }
             }
         }
 
-        if chunk.is_empty() {
-            None
-        } else {
-            Some(chunk.into_iter())
+        match chunk.is_empty() {
+            true => None,
+            false => Some(chunk.into_iter()),
         }
     }
 
@@ -304,6 +326,38 @@ where
         }
 
         Some((begin_idx, chunk.into_iter()))
+    }
+}
+
+impl<T, E> NewConcurrentIter for Con1<T, E>
+where
+    T: Send,
+    E: Fn(&T) -> Vec<T> + Send + Sync,
+{
+    fn next_with_thread_idx(&self, thread_idx: usize) -> Option<Self::Item> {
+        Self::next_impl(
+            &self.injector,
+            &*self.extend,
+            &self.locals,
+            &self.stealers,
+            &self.pending,
+            &self.popped,
+            &self.stopped,
+            Some(thread_idx),
+        )
+        .map(|(_, x)| x)
+    }
+
+    fn chunk_puller_with_thread_idx(
+        &self,
+        chunk_size: usize,
+        thread_idx: usize,
+    ) -> Self::ChunkPuller<'_> {
+        Con1ChunkPuller {
+            iter: self,
+            chunk_size,
+            thread_idx: Some(thread_idx),
+        }
     }
 }
 
@@ -357,6 +411,7 @@ where
             &self.pending,
             &self.popped,
             &self.stopped,
+            None,
         )
         .map(|(_, x)| x)
     }
@@ -370,6 +425,7 @@ where
             &self.pending,
             &self.popped,
             &self.stopped,
+            None,
         )
     }
 
@@ -402,6 +458,7 @@ where
         Con1ChunkPuller {
             iter: self,
             chunk_size,
+            thread_idx: None,
         }
     }
 }

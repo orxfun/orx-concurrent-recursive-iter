@@ -42,3 +42,4 @@ pub use concurrent_iter_cross::ConcurrentIterCross;
 pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
 pub use concurrent_recursive_iter_shards2::ConcurrentRecursiveIterShards2;
+pub use new_con_iter::NewConcurrentIter;
