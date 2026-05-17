@@ -213,8 +213,8 @@ where
 
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
-        let children: Vec<I::Item> = extend(&item).into_iter().collect();
-        if !children.is_empty() && !stopped.load(Ordering::Acquire) {
+        let children = extend(&item).into_iter();
+        if children.len() > 0 && !stopped.load(Ordering::Acquire) {
             pending.fetch_add(children.len(), Ordering::Relaxed);
             match owner_local {
                 Some(local) => {
