@@ -1,6 +1,6 @@
 use clap::Parser;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
-use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, Queue};
+use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
@@ -149,7 +149,7 @@ fn run_concurrent_iter<I>(
     chunk_size: usize,
 ) -> u64
 where
-    I: ConcurrentIter<Item = usize> + Sync,
+    I: NewConcurrentIter<Item = usize> + Sync,
 {
     let num_threads = num_threads.max(1);
     let chunk_size = chunk_size.max(1);
@@ -157,8 +157,9 @@ where
 
     std::thread::scope(|scope| {
         let mut handles = Vec::with_capacity(num_threads);
-        for _ in 0..num_threads {
-            handles.push(scope.spawn(|| {
+        for thread_idx in 0..num_threads {
+            let num_spawned = &num_spawned;
+            handles.push(scope.spawn(move || {
                 num_spawned.fetch_add(1, Ordering::Relaxed);
                 while num_spawned.load(Ordering::Relaxed) < num_threads {
                     core::hint::spin_loop();
@@ -166,11 +167,11 @@ where
 
                 let mut local_sum = 0u64;
                 if chunk_size == 1 {
-                    while let Some(idx) = iter.next() {
+                    while let Some(idx) = iter.next_with_thread_idx(thread_idx) {
                         local_sum += fs.nodes[idx].compute_score(work);
                     }
                 } else {
-                    let mut puller = iter.chunk_puller(chunk_size);
+                    let mut puller = iter.chunk_puller_with_thread_idx(chunk_size, thread_idx);
                     while let Some(chunk) = puller.pull() {
                         local_sum += chunk
                             .into_iter()
