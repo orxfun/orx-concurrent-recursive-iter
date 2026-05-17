@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use orx_concurrent_iter::ConcurrentIter;
+use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, Queue};
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
@@ -121,11 +121,18 @@ fn rayon_sum(fs: &FileSystem, work: usize, pool: &ThreadPool) -> u64 {
     sum.load(Ordering::Relaxed)
 }
 
-fn run_concurrent_iter<I>(iter: &I, fs: &FileSystem, work: usize, num_threads: usize) -> u64
+fn run_concurrent_iter<I>(
+    iter: &I,
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    chunk_size: usize,
+) -> u64
 where
     I: ConcurrentIter<Item = usize> + Sync,
 {
     let num_threads = num_threads.max(1);
+    let chunk_size = chunk_size.max(1);
     let num_spawned = AtomicUsize::new(0);
 
     std::thread::scope(|scope| {
@@ -138,9 +145,23 @@ where
                 }
 
                 let mut local_sum = 0u64;
-                while let Some(idx) = iter.next() {
-                    local_sum += fs.nodes[idx].compute_score(work);
+                match chunk_size {
+                    1 => {
+                        while let Some(idx) = iter.next() {
+                            local_sum += fs.nodes[idx].compute_score(work);
+                        }
+                    }
+                    c => {
+                        let mut puller = iter.chunk_puller(c);
+                        while let Some(chunk) = puller.pull() {
+                            local_sum += chunk
+                                .into_iter()
+                                .map(|idx| fs.nodes[idx].compute_score(work))
+                                .sum::<u64>();
+                        }
+                    }
                 }
+
                 local_sum
             }));
         }
@@ -149,7 +170,12 @@ where
     })
 }
 
-fn concurrent_recursive_iter_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+fn concurrent_recursive_iter_sum(
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    chunk_size: usize,
+) -> u64 {
     let iter = ConcurrentRecursiveIter::new_exact(
         fs.roots.iter().copied(),
         |idx: &usize, queue: &Queue<usize>| {
@@ -158,17 +184,17 @@ fn concurrent_recursive_iter_sum(fs: &FileSystem, work: usize, num_threads: usiz
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads)
+    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
 }
 
-fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize, chunk_size: usize) -> u64 {
     let iter = Con1::new_exact(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.clone(),
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads)
+    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
 }
 
 #[derive(Clone)]
@@ -210,7 +236,9 @@ enum Method {
     Seq,
     Rayon,
     Con1,
+    Con1Chunk64,
     RecIter,
+    RecIterChunk64,
 }
 
 impl Factors for Method {
@@ -224,7 +252,9 @@ impl Factors for Method {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
                 Self::Con1 => "con1",
+                Self::Con1Chunk64 => "con1-c64",
                 Self::RecIter => "orx",
+                Self::RecIterChunk64 => "orx-c64",
             }
             .to_string(),
         ]
@@ -236,7 +266,9 @@ impl Factors for Method {
                 Self::Seq => "s",
                 Self::Rayon => "r",
                 Self::Con1 => "c1",
+                Self::Con1Chunk64 => "c1-c64",
                 Self::RecIter => "o",
+                Self::RecIterChunk64 => "o-c64",
             }
             .to_string(),
         ]
@@ -275,10 +307,22 @@ impl Experiment for Exp {
                     .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
                 rayon_sum(input, input_variant.work, &pool)
             }
-            Method::Con1 => con1_sum(input, input_variant.work, input_variant.num_threads),
-            Method::RecIter => {
-                concurrent_recursive_iter_sum(input, input_variant.work, input_variant.num_threads)
+            Method::Con1 => con1_sum(input, input_variant.work, input_variant.num_threads, 1),
+            Method::Con1Chunk64 => {
+                con1_sum(input, input_variant.work, input_variant.num_threads, 64)
             }
+            Method::RecIter => concurrent_recursive_iter_sum(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+                1,
+            ),
+            Method::RecIterChunk64 => concurrent_recursive_iter_sum(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+                64,
+            ),
         }
     }
 
@@ -306,7 +350,14 @@ fn run(c: &mut Criterion) {
         })
         .collect();
 
-    let variants = vec![Method::Seq, Method::Rayon, Method::Con1, Method::RecIter];
+    let variants = vec![
+        Method::Seq,
+        Method::Rayon,
+        Method::Con1,
+        Method::Con1Chunk64,
+        Method::RecIter,
+        Method::RecIterChunk64,
+    ];
 
     Exp.bench(c, "ben", &treatments, &variants);
 }
