@@ -5,7 +5,7 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -20,6 +20,14 @@ struct Args {
     /// Chunk size used by con1/orx base variants.
     #[arg(long = "chunk-size", default_value_t = 1)]
     chunk_size: usize,
+
+    /// Amount of work
+    #[arg(long = "work", default_value_t = 300)]
+    work: usize,
+
+    /// Number of warmup runs
+    #[arg(long = "warm-up", default_value_t = 4)]
+    warm_up: usize,
 }
 
 #[derive(Clone)]
@@ -228,26 +236,18 @@ impl Method {
     }
 }
 
-fn main() {
-    let args = Args::parse();
-
-    let default_threads = std::thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1);
-    let num_threads = args.num_threads.unwrap_or(default_threads).max(1);
-    let chunk_size = args.chunk_size.max(1);
-
-    let fs = FileSystem::generate(40_000, 100, 8, 42);
-    let work = 300;
-    let expected = seq_sum(&fs, work);
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
-
+fn run(
+    methods: &[Method],
+    fs: &FileSystem,
+    work: usize,
+    pool: &ThreadPool,
+    num_threads: usize,
+    chunk_size: usize,
+    expected: u64,
+) -> Vec<(Method, Duration)> {
     let mut rows = Vec::with_capacity(Method::all().len());
 
-    for method in Method::all() {
+    for method in methods {
         let started = Instant::now();
         let output = match method {
             Method::Seq => seq_sum(&fs, work),
@@ -258,8 +258,53 @@ fn main() {
         let elapsed = started.elapsed();
 
         assert_eq!(expected, output);
-        rows.push((method, elapsed));
+        rows.push((*method, elapsed));
     }
+
+    rows
+}
+
+fn main() {
+    let args = Args::parse();
+
+    let default_threads = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+    let num_threads = args.num_threads.unwrap_or(default_threads).max(1);
+    let chunk_size = args.chunk_size.max(1);
+    let work = args.work.max(1);
+
+    let fs = FileSystem::generate(40_000, 100, 8, 42);
+    let expected = seq_sum(&fs, work);
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
+
+    // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::RecIter];
+    let methods = vec![Method::Rayon, Method::Con1, Method::RecIter];
+
+    for _ in 0..args.warm_up {
+        _ = run(
+            &methods,
+            &fs,
+            work,
+            &pool,
+            num_threads,
+            chunk_size,
+            expected,
+        );
+    }
+
+    let rows = run(
+        &methods,
+        &fs,
+        work,
+        &pool,
+        num_threads,
+        chunk_size,
+        expected,
+    );
 
     let max_nanos = rows
         .iter()
@@ -273,6 +318,6 @@ fn main() {
             n => ((elapsed.as_nanos() * 40 + (n / 2)) / n) as usize,
         };
         let bar = "▆".repeat(bar_len);
-        println!("{:<6} {:>10?}\t\t{}", method.label(), elapsed, bar);
+        println!("{:<6} {:>10?}\t{}", method.label(), elapsed, bar);
     }
 }
