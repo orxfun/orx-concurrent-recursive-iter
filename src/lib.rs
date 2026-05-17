@@ -29,6 +29,7 @@ mod concurrent_iter_cross;
 mod concurrent_iter_cross_seg;
 mod concurrent_recursive_iter_shards;
 mod concurrent_recursive_iter_shards2;
+mod new_con_iter;
 // mod dyn_seq_queue;
 // mod queue;
 
