@@ -77,7 +77,9 @@ where
 
         let children = extend(&item);
         if !children.is_empty() && !stopped.load(Ordering::Acquire) {
-            pending.fetch_add(children.len(), Ordering::Relaxed);
+            let num_children = children.len();
+            pending.fetch_add(num_children, Ordering::Relaxed);
+            // Batch push children to reduce contention
             for child in children {
                 injector.push(child);
             }
@@ -265,6 +267,7 @@ where
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
         let mut chunk = Vec::with_capacity(self.chunk_size);
+
         for _ in 0..self.chunk_size {
             if let Some(item) = ConcurrentIter::next(self.iter) {
                 chunk.push(item);

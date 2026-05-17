@@ -30,6 +30,10 @@ rand = { version = "0.9.2" }
 test-case = { version = "3.3.1" }
 
 [[bench]]
+name = "ben"
+harness = false
+
+[[bench]]
 name = "recursive_iter_scaling"
 harness = false
 

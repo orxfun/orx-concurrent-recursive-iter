@@ -88,6 +88,7 @@ enum Method {
     RecIter,
     RecIterShards,
     CrossbeamDeque,
+    CrossbeamDeque2,
     CrossbeamSegQueue,
     All,
 }
@@ -102,10 +103,11 @@ impl core::str::FromStr for Method {
             "reciter" => Ok(Self::RecIter),
             "reciter-shards" => Ok(Self::RecIterShards),
             "crossbeam" => Ok(Self::CrossbeamDeque),
+            "crossbeam-deque-2" => Ok(Self::CrossbeamDeque2),
             "crossbeam-seg" => Ok(Self::CrossbeamSegQueue),
             "all" => Ok(Self::All),
             _ => Err(format!(
-                "unknown method: {s}; expected one of seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-seg|all"
+                "unknown method: {s}; expected one of seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-deque-2|crossbeam-seg|all"
             )),
         }
     }
@@ -316,6 +318,37 @@ fn crossbeam_iter_cross_sum(fs: &FileSystem, work: usize, num_threads: usize) ->
     })
 }
 
+fn crossbeam_iter_cross_sum2(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCross::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                while let Some(idx) = iter.next() {
+                    local_sum += fs.nodes[idx].compute_score(work);
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
 fn crossbeam_iter_cross_seg_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
     let iter = ConcurrentIterCrossSeg::new_exact(
         fs.roots.iter().copied(),
@@ -380,6 +413,7 @@ fn main() {
             Method::RecIter,
             Method::RecIterShards,
             Method::CrossbeamDeque,
+            Method::CrossbeamDeque2,
             Method::CrossbeamSegQueue,
         ],
         Method::Seq => &[Method::Seq],
@@ -387,6 +421,7 @@ fn main() {
         Method::RecIter => &[Method::RecIter],
         Method::RecIterShards => &[Method::RecIterShards],
         Method::CrossbeamDeque => &[Method::CrossbeamDeque],
+        Method::CrossbeamDeque2 => &[Method::CrossbeamDeque2],
         Method::CrossbeamSegQueue => &[Method::CrossbeamSegQueue],
     };
 
@@ -417,6 +452,9 @@ fn main() {
                 }
                 Method::CrossbeamDeque => {
                     crossbeam_iter_cross_sum(&fs, args.work, args.num_threads)
+                }
+                Method::CrossbeamDeque2 => {
+                    crossbeam_iter_cross_sum2(&fs, args.work, args.num_threads)
                 }
                 Method::CrossbeamSegQueue => {
                     crossbeam_iter_cross_seg_sum(&fs, args.work, args.num_threads)
@@ -450,6 +488,9 @@ fn main() {
             Method::CrossbeamDeque => run_one("crossbeam-deque", args.repetitions, || {
                 crossbeam_iter_cross_sum(&fs, args.work, args.num_threads)
             }),
+            Method::CrossbeamDeque2 => run_one("crossbeam-deque-2", args.repetitions, || {
+                crossbeam_iter_cross_sum2(&fs, args.work, args.num_threads)
+            }),
             Method::CrossbeamSegQueue => run_one("crossbeam-segqueue", args.repetitions, || {
                 crossbeam_iter_cross_seg_sum(&fs, args.work, args.num_threads)
             }),
@@ -470,7 +511,9 @@ fn main() {
     println!("  --max-children <usize>");
     println!("  --work <usize>");
     println!("  --seed <u64>");
-    println!("  --method <seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-seg|all>");
+    println!(
+        "  --method <seq|rayon|reciter|reciter-shards|crossbeam|crossbeam-deque-2|crossbeam-seg|all>"
+    );
     println!("  --repetitions <usize>");
     println!("  --warmup <usize>");
     println!("  --num-threads <usize>");

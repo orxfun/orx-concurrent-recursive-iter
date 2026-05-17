@@ -297,6 +297,72 @@ fn crossbeam_iter_cross_sum(fs: &FileSystem, work: usize, num_threads: usize) ->
     })
 }
 
+fn crossbeam_iter_cross_sum2(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCross::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                while let Some(idx) = iter.next() {
+                    local_sum += fs.nodes[idx].compute_score(work);
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
+fn crossbeam_iter_cross_sum2_chunk64(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+    let iter = ConcurrentIterCross::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.clone(),
+        fs.nodes.len(),
+    );
+
+    let num_threads = num_threads.max(1);
+    let num_spawned = AtomicUsize::new(0);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(num_threads);
+        for _ in 0..num_threads {
+            handles.push(scope.spawn(|| {
+                num_spawned.fetch_add(1, Ordering::Relaxed);
+                while num_spawned.load(Ordering::Relaxed) < num_threads {
+                    core::hint::spin_loop();
+                }
+
+                let mut local_sum = 0u64;
+                let mut puller = iter.chunk_puller(64);
+                while let Some(chunk) = puller.pull() {
+                    local_sum += chunk
+                        .into_iter()
+                        .map(|idx| fs.nodes[idx].compute_score(work))
+                        .sum::<u64>();
+                }
+                local_sum
+            }));
+        }
+
+        handles.into_iter().map(|h| h.join().unwrap()).sum()
+    })
+}
+
 fn crossbeam_iter_cross_seg_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
     let iter = ConcurrentIterCrossSeg::new_exact(
         fs.roots.iter().copied(),
@@ -350,6 +416,8 @@ enum Method {
     RecIterShards2_1,
     RecIterShards2_2,
     CrossbeamDeque,
+    CrossbeamDeque2,
+    CrossbeamDeque2Chunk64,
     CrossbeamSegQueue,
 }
 
@@ -371,6 +439,8 @@ impl Factors for Method {
                 Self::RecIterShards2_1 => "orx2-s1",
                 Self::RecIterShards2_2 => "orx2-s2",
                 Self::CrossbeamDeque => "cb",
+                Self::CrossbeamDeque2 => "cb2",
+                Self::CrossbeamDeque2Chunk64 => "cb2-c64",
                 Self::CrossbeamSegQueue => "cbq",
             }
             .to_string(),
@@ -390,6 +460,8 @@ impl Factors for Method {
                 Self::RecIterShards2_1 => "o2-s1",
                 Self::RecIterShards2_2 => "o2-s2",
                 Self::CrossbeamDeque => "cb",
+                Self::CrossbeamDeque2 => "cb2",
+                Self::CrossbeamDeque2Chunk64 => "cb2-c64",
                 Self::CrossbeamSegQueue => "cbq",
             }
             .to_string(),
@@ -471,6 +543,14 @@ impl Experiment for Exp {
             Method::CrossbeamDeque => {
                 crossbeam_iter_cross_sum(input, input_variant.work, input_variant.num_threads)
             }
+            Method::CrossbeamDeque2 => {
+                crossbeam_iter_cross_sum2(input, input_variant.work, input_variant.num_threads)
+            }
+            Method::CrossbeamDeque2Chunk64 => crossbeam_iter_cross_sum2_chunk64(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+            ),
             Method::CrossbeamSegQueue => {
                 crossbeam_iter_cross_seg_sum(input, input_variant.work, input_variant.num_threads)
             }
@@ -502,6 +582,13 @@ fn run(c: &mut Criterion) {
         .collect();
 
     let variants: Vec<_> = all::<Method>().collect();
+    let variants = vec![
+        Method::Rayon,
+        Method::CrossbeamDeque,
+        Method::CrossbeamDeque2,
+        Method::CrossbeamDeque2Chunk64,
+        Method::CrossbeamSegQueue,
+    ];
 
     Exp.bench(c, "recursive_iter_scaling", &treatments, &variants);
 }

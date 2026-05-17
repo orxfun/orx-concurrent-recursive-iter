@@ -24,6 +24,7 @@ extern crate alloc;
 // mod chunk_puller;
 // mod con_iter;
 mod archive2;
+mod con1;
 mod concurrent_iter_cross;
 mod concurrent_iter_cross_seg;
 mod concurrent_recursive_iter_shards;
@@ -35,6 +36,7 @@ mod concurrent_recursive_iter_shards2;
 pub use orx_concurrent_iter::*;
 
 pub use archive2::{ConcurrentRecursiveIter, Queue};
+pub use con1::Con1;
 pub use concurrent_iter_cross::ConcurrentIterCross;
 pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
