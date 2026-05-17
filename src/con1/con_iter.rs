@@ -82,6 +82,7 @@ where
     iter: &'a Con1<T, E>,
     chunk_size: usize,
     thread_idx: Option<usize>,
+    chunk_buffer: Vec<T>,
 }
 
 impl<T, E> Con1<T, E>
@@ -220,7 +221,7 @@ where
         Some((idx, item))
     }
 
-    fn pull_batch_impl(
+    fn pull_batch_into_impl(
         injector: &Injector<T>,
         extend: &E,
         locals: &[LocalWorker<T>],
@@ -230,7 +231,8 @@ where
         stopped: &AtomicBool,
         thread_idx: Option<usize>,
         chunk_size: usize,
-    ) -> Option<(usize, Vec<T>)> {
+        chunk: &mut Vec<T>,
+    ) -> Option<usize> {
         if chunk_size == 0 || stopped.load(Ordering::Acquire) {
             return None;
         }
@@ -238,8 +240,12 @@ where
         let owner_local = thread_idx.map(|idx| Self::owner_local(locals, idx));
         let owner_local_idx = thread_idx.map(|idx| idx % locals.len());
 
+        chunk.clear();
+        if chunk.capacity() < chunk_size {
+            chunk.reserve(chunk_size - chunk.capacity());
+        }
+
         let mut begin_idx = None;
-        let mut chunk = Vec::with_capacity(chunk_size);
 
         for _ in 0..chunk_size {
             if stopped.load(Ordering::Acquire) {
@@ -287,7 +293,7 @@ where
             chunk.push(item);
         }
 
-        begin_idx.map(|idx| (idx, chunk))
+        begin_idx
     }
 
     fn default_num_locals() -> usize {
@@ -399,7 +405,7 @@ where
     type ChunkItem = T;
 
     type Chunk<'c>
-        = std::vec::IntoIter<T>
+        = std::vec::Drain<'c, T>
     where
         Self: 'c;
 
@@ -408,7 +414,7 @@ where
     }
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
-        let (_, chunk) = Con1::pull_batch_impl(
+        Con1::pull_batch_into_impl(
             &self.iter.injector,
             &*self.iter.extend,
             &self.iter.locals,
@@ -418,13 +424,14 @@ where
             &self.iter.stopped,
             self.thread_idx,
             self.chunk_size,
+            &mut self.chunk_buffer,
         )?;
 
-        Some(chunk.into_iter())
+        Some(self.chunk_buffer.drain(..))
     }
 
     fn pull_with_idx(&mut self) -> Option<(usize, Self::Chunk<'_>)> {
-        let (begin_idx, chunk) = Con1::pull_batch_impl(
+        let begin_idx = Con1::pull_batch_into_impl(
             &self.iter.injector,
             &*self.iter.extend,
             &self.iter.locals,
@@ -434,9 +441,10 @@ where
             &self.iter.stopped,
             self.thread_idx,
             self.chunk_size.max(1),
+            &mut self.chunk_buffer,
         )?;
 
-        Some((begin_idx, chunk.into_iter()))
+        Some((begin_idx, self.chunk_buffer.drain(..)))
     }
 }
 
@@ -468,6 +476,7 @@ where
             iter: self,
             chunk_size,
             thread_idx: Some(thread_idx),
+            chunk_buffer: Vec::new(),
         }
     }
 }
@@ -563,6 +572,7 @@ where
             iter: self,
             chunk_size,
             thread_idx: None,
+            chunk_buffer: Vec::new(),
         }
     }
 }
