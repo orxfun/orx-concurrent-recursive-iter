@@ -2,6 +2,7 @@ use core::cell::UnsafeCell;
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use std::iter::FusedIterator;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -45,10 +46,11 @@ unsafe impl<T> Sync for LocalWorker<T> where T: Send {}
 ///
 /// This iterator is designed to be consumed through the generic [`ConcurrentIter`]
 /// trait API while still leveraging local work queues and cross-thread stealing.
-pub struct Con1<T, E>
+pub struct Con1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     injector: Arc<Injector<T>>,
     extend: Arc<E>,
@@ -58,12 +60,14 @@ where
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
     exact_len: Option<usize>,
+    _phantom: PhantomData<fn() -> I>,
 }
 
-pub struct SeqCon1<T, E>
+pub struct SeqCon1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     injector: Arc<Injector<T>>,
     extend: Arc<E>,
@@ -72,23 +76,26 @@ where
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
+    _phantom: PhantomData<fn() -> I>,
 }
 
-pub struct Con1ChunkPuller<'a, T, E>
+pub struct Con1ChunkPuller<'a, T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
-    iter: &'a Con1<T, E>,
+    iter: &'a Con1<T, I, E>,
     chunk_size: usize,
     thread_idx: Option<usize>,
     chunk_buffer: Vec<T>,
 }
 
-impl<T, E> Con1<T, E>
+impl<T, I, E> Con1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     fn decrement_pending(pending: &AtomicUsize) {
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
@@ -200,7 +207,7 @@ where
 
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
-        let children = extend(&item);
+        let children: Vec<T> = extend(&item).into_iter().collect();
         if !children.is_empty() && !stopped.load(Ordering::Acquire) {
             pending.fetch_add(children.len(), Ordering::Relaxed);
             match owner_local {
@@ -272,7 +279,7 @@ where
             let idx = popped.fetch_add(1, Ordering::Relaxed);
             begin_idx.get_or_insert(idx);
 
-            let children = extend(&item);
+            let children: Vec<T> = extend(&item).into_iter().collect();
             if !children.is_empty() && !stopped.load(Ordering::Acquire) {
                 pending.fetch_add(children.len(), Ordering::Relaxed);
                 match owner_local {
@@ -331,6 +338,7 @@ where
             popped: Arc::new(AtomicUsize::new(0)),
             stopped: Arc::new(AtomicBool::new(false)),
             exact_len: None,
+            _phantom: PhantomData,
         }
     }
 
@@ -360,10 +368,11 @@ where
     }
 }
 
-impl<T, E> Iterator for SeqCon1<T, E>
+impl<T, I, E> Iterator for SeqCon1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     type Item = T;
 
@@ -390,17 +399,19 @@ where
     }
 }
 
-impl<T, E> FusedIterator for SeqCon1<T, E>
+impl<T, I, E> FusedIterator for SeqCon1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
 }
 
-impl<'a, T, E> ChunkPuller for Con1ChunkPuller<'a, T, E>
+impl<'a, T, I, E> ChunkPuller for Con1ChunkPuller<'a, T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     type ChunkItem = T;
 
@@ -448,10 +459,11 @@ where
     }
 }
 
-impl<T, E> NewConcurrentIter for Con1<T, E>
+impl<T, I, E> NewConcurrentIter for Con1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     fn next_with_thread_idx(&self, thread_idx: usize) -> Option<Self::Item> {
         Self::next_impl(
@@ -481,17 +493,18 @@ where
     }
 }
 
-impl<T, E> ConcurrentIter for Con1<T, E>
+impl<T, I, E> ConcurrentIter for Con1<T, I, E>
 where
     T: Send,
-    E: Fn(&T) -> Vec<T> + Send + Sync,
+    I: IntoIterator<Item = T>,
+    E: Fn(&T) -> I + Send + Sync,
 {
     type Item = T;
 
-    type SequentialIter = SeqCon1<T, E>;
+    type SequentialIter = SeqCon1<T, I, E>;
 
     type ChunkPuller<'i>
-        = Con1ChunkPuller<'i, T, E>
+        = Con1ChunkPuller<'i, T, I, E>
     where
         Self: 'i;
 
@@ -504,6 +517,7 @@ where
             pending: self.pending,
             popped: self.popped,
             stopped: self.stopped,
+            _phantom: PhantomData,
         }
     }
 
