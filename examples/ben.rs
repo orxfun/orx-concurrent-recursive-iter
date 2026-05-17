@@ -1,3 +1,4 @@
+use clap::Parser;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, Queue};
 use rand::prelude::*;
@@ -5,6 +6,21 @@ use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "ben",
+    about = "Run recursive iteration methods with configurable threads and chunk size"
+)]
+struct Args {
+    /// Number of worker threads used by parallel methods.
+    #[arg(long = "num-threads")]
+    num_threads: Option<usize>,
+
+    /// Chunk size used by con1/orx base variants.
+    #[arg(long = "chunk-size", default_value_t = 1)]
+    chunk_size: usize,
+}
 
 #[derive(Clone)]
 struct DirNode {
@@ -194,21 +210,12 @@ enum Method {
     Seq,
     Rayon,
     Con1,
-    Con1Chunk64,
     RecIter,
-    RecIterChunk64,
 }
 
 impl Method {
-    fn all() -> [Self; 6] {
-        [
-            Self::Seq,
-            Self::Rayon,
-            Self::Con1,
-            Self::Con1Chunk64,
-            Self::RecIter,
-            Self::RecIterChunk64,
-        ]
+    fn all() -> [Self; 4] {
+        [Self::Seq, Self::Rayon, Self::Con1, Self::RecIter]
     }
 
     fn label(self) -> &'static str {
@@ -216,17 +223,19 @@ impl Method {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
             Self::Con1 => "con1",
-            Self::Con1Chunk64 => "con1-c64",
             Self::RecIter => "orx",
-            Self::RecIterChunk64 => "orx-c64",
         }
     }
 }
 
 fn main() {
-    let num_threads = std::thread::available_parallelism()
+    let args = Args::parse();
+
+    let default_threads = std::thread::available_parallelism()
         .map(usize::from)
         .unwrap_or(1);
+    let num_threads = args.num_threads.unwrap_or(default_threads).max(1);
+    let chunk_size = args.chunk_size.max(1);
 
     let fs = FileSystem::generate(40_000, 100, 8, 42);
     let work = 300;
@@ -236,19 +245,34 @@ fn main() {
         .build()
         .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
 
+    let mut rows = Vec::with_capacity(Method::all().len());
+
     for method in Method::all() {
         let started = Instant::now();
         let output = match method {
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
-            Method::Con1 => con1_sum(&fs, work, num_threads, 1),
-            Method::Con1Chunk64 => con1_sum(&fs, work, num_threads, 64),
-            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, num_threads, 1),
-            Method::RecIterChunk64 => concurrent_recursive_iter_sum(&fs, work, num_threads, 64),
+            Method::Con1 => con1_sum(&fs, work, num_threads, chunk_size),
+            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, num_threads, chunk_size),
         };
         let elapsed = started.elapsed();
 
         assert_eq!(expected, output);
-        println!("{:<6} {:>10?}  sum={}", method.label(), elapsed, output);
+        rows.push((method, elapsed));
+    }
+
+    let max_nanos = rows
+        .iter()
+        .map(|(_, elapsed)| elapsed.as_nanos())
+        .max()
+        .unwrap_or(0);
+
+    for (method, elapsed) in rows {
+        let bar_len = match max_nanos {
+            0 => 0,
+            n => ((elapsed.as_nanos() * 40 + (n / 2)) / n) as usize,
+        };
+        let bar = "▆".repeat(bar_len);
+        println!("{:<6} {:>10?}\t\t{}", method.label(), elapsed, bar);
     }
 }

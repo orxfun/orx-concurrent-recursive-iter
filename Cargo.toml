@@ -20,6 +20,7 @@ orx-concurrent-queue = { path = "../orx-concurrent-queue", default-features = fa
 orx-pseudo-default = { version = "2.1.0", default-features = false }
 
 [dev-dependencies]
+clap = { version = "4.5.39", features = ["derive"] }
 criterion = { version = "0.8.0", default-features = false }
 enum-iterator = { version = "2.3.0", default-features = false }
 orx-concurrent-bag = { version = "3.4.0" }
