@@ -275,7 +275,7 @@ fn main() {
     let chunk_size = args.chunk_size.max(1);
     let work = args.work.max(1);
 
-    let fs = FileSystem::generate(40_000, 100, 8, 42);
+    let fs = FileSystem::generate(100_000, 100, 64, 42);
     let expected = seq_sum(&fs, work);
     let pool = ThreadPoolBuilder::new()
         .num_threads(num_threads)
