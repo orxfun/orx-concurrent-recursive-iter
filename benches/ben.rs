@@ -192,7 +192,7 @@ fn concurrent_recursive_iter_sum(
 fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize, chunk_size: usize) -> u64 {
     let iter = Con1::new_exact(
         fs.roots.iter().copied(),
-        |idx: &usize| fs.nodes[*idx].children.clone(),
+        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
         fs.nodes.len(),
     );
 
