@@ -1,12 +1,10 @@
+use crate::new_con_iter::NewConcurrentIter;
 use core::cell::UnsafeCell;
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use std::iter::FusedIterator;
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-use crate::new_con_iter::NewConcurrentIter;
 
 struct LocalWorker<T>
 where
@@ -60,7 +58,6 @@ where
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
     exact_len: Option<usize>,
-    _phantom: PhantomData<fn() -> I>,
 }
 
 pub struct SeqCon1<I, E>
@@ -76,7 +73,6 @@ where
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
-    _phantom: PhantomData<fn() -> I>,
 }
 
 pub struct Con1ChunkPuller<'a, I, E>
@@ -344,7 +340,6 @@ where
             popped: Arc::new(AtomicUsize::new(0)),
             stopped: Arc::new(AtomicBool::new(false)),
             exact_len: None,
-            _phantom: PhantomData,
         }
     }
 
@@ -523,7 +518,6 @@ where
             pending: self.pending,
             popped: self.popped,
             stopped: self.stopped,
-            _phantom: PhantomData,
         }
     }
 
