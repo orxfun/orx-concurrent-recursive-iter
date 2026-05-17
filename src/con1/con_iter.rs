@@ -1,13 +1,45 @@
+use core::cell::UnsafeCell;
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use crate::new_con_iter::NewConcurrentIter;
+
+struct LocalWorker<T>
+where
+    T: Send,
+{
+    worker: UnsafeCell<Worker<T>>,
+}
+
+impl<T> LocalWorker<T>
+where
+    T: Send,
+{
+    fn new_fifo() -> Self {
+        Self {
+            worker: UnsafeCell::new(Worker::new_fifo()),
+        }
+    }
+
+    fn stealer(&self) -> Stealer<T> {
+        // SAFETY: `stealer` creation is read-only and can happen from any thread.
+        unsafe { (&*self.worker.get()).stealer() }
+    }
+
+    fn as_owner_worker(&self) -> &Worker<T> {
+        // SAFETY: owner-only access is enforced by thread-to-slot assignment.
+        unsafe { &*self.worker.get() }
+    }
+}
+
+// SAFETY: the underlying deque supports one owner thread and many stealers.
+// Con1 assigns one owner per local slot and exposes only `Stealer` to other threads.
+unsafe impl<T> Send for LocalWorker<T> where T: Send {}
+// SAFETY: see `Send` rationale above.
+unsafe impl<T> Sync for LocalWorker<T> where T: Send {}
 
 /// Refined recursive concurrent iterator using crossbeam injector + work stealing.
 ///
@@ -20,7 +52,7 @@ where
 {
     injector: Arc<Injector<T>>,
     extend: Arc<E>,
-    locals: Arc<Vec<Mutex<Worker<T>>>>,
+    locals: Arc<Vec<LocalWorker<T>>>,
     stealers: Arc<Vec<Stealer<T>>>,
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
@@ -35,7 +67,7 @@ where
 {
     injector: Arc<Injector<T>>,
     extend: Arc<E>,
-    locals: Arc<Vec<Mutex<Worker<T>>>>,
+    locals: Arc<Vec<LocalWorker<T>>>,
     stealers: Arc<Vec<Stealer<T>>>,
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
@@ -61,29 +93,19 @@ where
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
     }
 
-    fn choose_local_idx(num_locals: usize) -> usize {
-        todo!(); // currently should be used by example & benchmark
-        if num_locals <= 1 {
-            return 0;
-        }
-
-        let tid = std::thread::current().id();
-        let mut hasher = DefaultHasher::new();
-        tid.hash(&mut hasher);
-        (hasher.finish() as usize) % num_locals
+    fn owner_local<'a>(locals: &'a [LocalWorker<T>], thread_idx: usize) -> &'a Worker<T> {
+        let local_idx = thread_idx % locals.len();
+        locals[local_idx].as_owner_worker()
     }
 
     fn steal_one_from_injector_or_others(
         injector: &Injector<T>,
-        locals: &[Mutex<Worker<T>>],
+        owner_local: &Worker<T>,
         stealers: &[Stealer<T>],
         local_idx: usize,
     ) -> Option<T> {
         loop {
-            let from_injector = {
-                let local = locals[local_idx].lock().expect("local worker poisoned");
-                injector.steal_batch_and_pop(&local)
-            };
+            let from_injector = injector.steal_batch_and_pop(owner_local);
 
             match from_injector {
                 Steal::Success(item) => return Some(item),
@@ -97,12 +119,37 @@ where
                     continue;
                 }
 
-                let stolen = {
-                    let local = locals[local_idx].lock().expect("local worker poisoned");
-                    stealer.steal_batch_and_pop(&local)
-                };
+                let stolen = stealer.steal_batch_and_pop(owner_local);
 
                 match stolen {
+                    Steal::Success(item) => return Some(item),
+                    Steal::Retry => {
+                        saw_retry = true;
+                        break;
+                    }
+                    Steal::Empty => {}
+                }
+            }
+
+            if saw_retry {
+                continue;
+            }
+
+            return None;
+        }
+    }
+
+    fn steal_one_global(injector: &Injector<T>, stealers: &[Stealer<T>]) -> Option<T> {
+        loop {
+            match injector.steal() {
+                Steal::Success(item) => return Some(item),
+                Steal::Retry => continue,
+                Steal::Empty => {}
+            }
+
+            let mut saw_retry = false;
+            for stealer in stealers {
+                match stealer.steal() {
                     Steal::Success(item) => return Some(item),
                     Steal::Retry => {
                         saw_retry = true;
@@ -123,38 +170,49 @@ where
     fn next_impl(
         injector: &Injector<T>,
         extend: &E,
-        locals: &[Mutex<Worker<T>>],
+        locals: &[LocalWorker<T>],
         stealers: &[Stealer<T>],
         pending: &AtomicUsize,
         popped: &AtomicUsize,
         stopped: &AtomicBool,
-        local_idx: Option<usize>,
+        thread_idx: Option<usize>,
     ) -> Option<(usize, T)> {
         if stopped.load(Ordering::Acquire) {
             return None;
         }
 
-        let local_idx = match local_idx {
-            Some(x) => x,
-            None => Self::choose_local_idx(locals.len()),
-        };
+        let owner_local = thread_idx.map(|idx| Self::owner_local(locals, idx));
+        let owner_local_idx = thread_idx.map(|idx| idx % locals.len());
 
-        let item = {
-            let local = locals[local_idx].lock().expect("local worker poisoned");
-            local.pop()
-        }
-        .or_else(|| {
-            Self::steal_one_from_injector_or_others(injector, locals, stealers, local_idx)
-        })?;
+        let item = match owner_local {
+            Some(local) => local.pop().or_else(|| {
+                Self::steal_one_from_injector_or_others(
+                    injector,
+                    local,
+                    stealers,
+                    owner_local_idx.expect("owner local idx must exist"),
+                )
+            }),
+            None => Self::steal_one_global(injector, stealers),
+        };
+        let item = item?;
 
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
         let children = extend(&item);
         if !children.is_empty() && !stopped.load(Ordering::Acquire) {
             pending.fetch_add(children.len(), Ordering::Relaxed);
-            let local = &mut *locals[local_idx].lock().expect("local worker poisoned");
-            for child in children {
-                local.push(child);
+            match owner_local {
+                Some(local) => {
+                    for child in children {
+                        local.push(child);
+                    }
+                }
+                None => {
+                    for child in children {
+                        injector.push(child);
+                    }
+                }
             }
         }
 
@@ -166,7 +224,7 @@ where
         let p = std::thread::available_parallelism()
             .map(usize::from)
             .unwrap_or(1);
-        p.max(1) * 4
+        p.max(1)
     }
 
     fn with_locals_count(
@@ -182,14 +240,11 @@ where
         }
 
         let locals_count = num_locals.max(1);
-        let locals_vec: Vec<Mutex<Worker<T>>> = (0..locals_count)
-            .map(|_| Mutex::new(Worker::new_fifo()))
-            .collect();
+        let locals_vec: Vec<LocalWorker<T>> =
+            (0..locals_count).map(|_| LocalWorker::new_fifo()).collect();
 
-        let stealers_vec: Vec<Stealer<T>> = locals_vec
-            .iter()
-            .map(|local| local.lock().expect("local worker poisoned").stealer())
-            .collect();
+        let stealers_vec: Vec<Stealer<T>> =
+            locals_vec.iter().map(|local| local.stealer()).collect();
 
         Self {
             injector,
@@ -393,13 +448,6 @@ where
 
         while self.injector.steal().is_success() {
             Self::decrement_pending(&self.pending);
-        }
-
-        for local in self.locals.iter() {
-            let local = &mut *local.lock().expect("local worker poisoned");
-            while local.pop().is_some() {
-                Self::decrement_pending(&self.pending);
-            }
         }
     }
 

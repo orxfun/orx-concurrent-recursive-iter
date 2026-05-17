@@ -356,7 +356,7 @@ fn run(c: &mut Criterion) {
         .collect();
 
     let variants = vec![
-        Method::Seq,
+        // Method::Seq,
         Method::Rayon,
         Method::Con1,
         Method::Con1Chunk,

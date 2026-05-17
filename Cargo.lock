@@ -443,7 +443,7 @@ dependencies = [
 [[package]]
 name = "orx-criterion"
 version = "1.0.0"
-source = "git+https://github.com/orxfun/orx-criterion#4f2a773e2fa6c5754039ba2c90e580554e56e53f"
+source = "git+https://github.com/orxfun/orx-criterion#578bf206e17d7163b5affd695f32616f4bc4f563"
 dependencies = [
  "cli-table",
  "colorize",
