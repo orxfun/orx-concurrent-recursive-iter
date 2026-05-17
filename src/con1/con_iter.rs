@@ -220,6 +220,76 @@ where
         Some((idx, item))
     }
 
+    fn pull_batch_impl(
+        injector: &Injector<T>,
+        extend: &E,
+        locals: &[LocalWorker<T>],
+        stealers: &[Stealer<T>],
+        pending: &AtomicUsize,
+        popped: &AtomicUsize,
+        stopped: &AtomicBool,
+        thread_idx: Option<usize>,
+        chunk_size: usize,
+    ) -> Option<(usize, Vec<T>)> {
+        if chunk_size == 0 || stopped.load(Ordering::Acquire) {
+            return None;
+        }
+
+        let owner_local = thread_idx.map(|idx| Self::owner_local(locals, idx));
+        let owner_local_idx = thread_idx.map(|idx| idx % locals.len());
+
+        let mut begin_idx = None;
+        let mut chunk = Vec::with_capacity(chunk_size);
+
+        for _ in 0..chunk_size {
+            if stopped.load(Ordering::Acquire) {
+                break;
+            }
+
+            let item = match owner_local {
+                Some(local) => local.pop().or_else(|| {
+                    Self::steal_one_from_injector_or_others(
+                        injector,
+                        local,
+                        stealers,
+                        owner_local_idx.expect("owner local idx must exist"),
+                    )
+                }),
+                None => Self::steal_one_global(injector, stealers),
+            };
+
+            let item = match item {
+                Some(item) => item,
+                None => break,
+            };
+
+            let idx = popped.fetch_add(1, Ordering::Relaxed);
+            begin_idx.get_or_insert(idx);
+
+            let children = extend(&item);
+            if !children.is_empty() && !stopped.load(Ordering::Acquire) {
+                pending.fetch_add(children.len(), Ordering::Relaxed);
+                match owner_local {
+                    Some(local) => {
+                        for child in children {
+                            local.push(child);
+                        }
+                    }
+                    None => {
+                        for child in children {
+                            injector.push(child);
+                        }
+                    }
+                }
+            }
+
+            Self::decrement_pending(pending);
+            chunk.push(item);
+        }
+
+        begin_idx.map(|idx| (idx, chunk))
+    }
+
     fn default_num_locals() -> usize {
         let p = std::thread::available_parallelism()
             .map(usize::from)
@@ -338,48 +408,33 @@ where
     }
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
-        let mut chunk = Vec::with_capacity(self.chunk_size);
-        match self.thread_idx {
-            Some(thread_idx) => {
-                for _ in 0..self.chunk_size {
-                    if let Some(item) =
-                        NewConcurrentIter::next_with_thread_idx(self.iter, thread_idx)
-                    {
-                        chunk.push(item);
-                    } else {
-                        break;
-                    }
-                }
-            }
-            None => {
-                for _ in 0..self.chunk_size {
-                    if let Some(item) = ConcurrentIter::next(self.iter) {
-                        chunk.push(item);
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
+        let (_, chunk) = Con1::pull_batch_impl(
+            &self.iter.injector,
+            &*self.iter.extend,
+            &self.iter.locals,
+            &self.iter.stealers,
+            &self.iter.pending,
+            &self.iter.popped,
+            &self.iter.stopped,
+            self.thread_idx,
+            self.chunk_size,
+        )?;
 
-        match chunk.is_empty() {
-            true => None,
-            false => Some(chunk.into_iter()),
-        }
+        Some(chunk.into_iter())
     }
 
     fn pull_with_idx(&mut self) -> Option<(usize, Self::Chunk<'_>)> {
-        let (begin_idx, first) = ConcurrentIter::next_with_idx(self.iter)?;
-        let mut chunk = Vec::with_capacity(self.chunk_size);
-        chunk.push(first);
-
-        for _ in 1..self.chunk_size {
-            if let Some(item) = ConcurrentIter::next(self.iter) {
-                chunk.push(item);
-            } else {
-                break;
-            }
-        }
+        let (begin_idx, chunk) = Con1::pull_batch_impl(
+            &self.iter.injector,
+            &*self.iter.extend,
+            &self.iter.locals,
+            &self.iter.stealers,
+            &self.iter.pending,
+            &self.iter.popped,
+            &self.iter.stopped,
+            self.thread_idx,
+            self.chunk_size.max(1),
+        )?;
 
         Some((begin_idx, chunk.into_iter()))
     }
