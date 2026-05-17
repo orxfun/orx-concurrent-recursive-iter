@@ -34,9 +34,8 @@ mod concurrent_recursive_iter_shards2;
 // re-import
 pub use orx_concurrent_iter::*;
 
-// pub use con_iter::ConcurrentRecursiveIter;
+pub use archive2::{ConcurrentRecursiveIter, Queue};
 pub use concurrent_iter_cross::ConcurrentIterCross;
 pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
 pub use concurrent_recursive_iter_shards2::ConcurrentRecursiveIterShards2;
-// pub use queue::Queue;
