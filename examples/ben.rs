@@ -1,4 +1,4 @@
-use orx_concurrent_iter::ConcurrentIter;
+use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, Queue};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -117,11 +117,18 @@ fn rayon_sum(fs: &FileSystem, work: usize, pool: &ThreadPool) -> u64 {
     sum.load(Ordering::Relaxed)
 }
 
-fn run_concurrent_iter<I>(iter: &I, fs: &FileSystem, work: usize, num_threads: usize) -> u64
+fn run_concurrent_iter<I>(
+    iter: &I,
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    chunk_size: usize,
+) -> u64
 where
     I: ConcurrentIter<Item = usize> + Sync,
 {
     let num_threads = num_threads.max(1);
+    let chunk_size = chunk_size.max(1);
     let num_spawned = AtomicUsize::new(0);
 
     std::thread::scope(|scope| {
@@ -134,8 +141,18 @@ where
                 }
 
                 let mut local_sum = 0u64;
-                while let Some(idx) = iter.next() {
-                    local_sum += fs.nodes[idx].compute_score(work);
+                if chunk_size == 1 {
+                    while let Some(idx) = iter.next() {
+                        local_sum += fs.nodes[idx].compute_score(work);
+                    }
+                } else {
+                    let mut puller = iter.chunk_puller(chunk_size);
+                    while let Some(chunk) = puller.pull() {
+                        local_sum += chunk
+                            .into_iter()
+                            .map(|idx| fs.nodes[idx].compute_score(work))
+                            .sum::<u64>();
+                    }
                 }
                 local_sum
             }));
@@ -145,7 +162,12 @@ where
     })
 }
 
-fn concurrent_recursive_iter_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+fn concurrent_recursive_iter_sum(
+    fs: &FileSystem,
+    work: usize,
+    num_threads: usize,
+    chunk_size: usize,
+) -> u64 {
     let iter = ConcurrentRecursiveIter::new_exact(
         fs.roots.iter().copied(),
         |idx: &usize, queue: &Queue<usize>| {
@@ -154,17 +176,17 @@ fn concurrent_recursive_iter_sum(fs: &FileSystem, work: usize, num_threads: usiz
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads)
+    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
 }
 
-fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize) -> u64 {
+fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize, chunk_size: usize) -> u64 {
     let iter = Con1::new_exact(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.clone(),
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads)
+    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -172,12 +194,21 @@ enum Method {
     Seq,
     Rayon,
     Con1,
+    Con1Chunk64,
     RecIter,
+    RecIterChunk64,
 }
 
 impl Method {
-    fn all() -> [Self; 4] {
-        [Self::Seq, Self::Rayon, Self::Con1, Self::RecIter]
+    fn all() -> [Self; 6] {
+        [
+            Self::Seq,
+            Self::Rayon,
+            Self::Con1,
+            Self::Con1Chunk64,
+            Self::RecIter,
+            Self::RecIterChunk64,
+        ]
     }
 
     fn label(self) -> &'static str {
@@ -185,7 +216,9 @@ impl Method {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
             Self::Con1 => "con1",
+            Self::Con1Chunk64 => "con1-c64",
             Self::RecIter => "orx",
+            Self::RecIterChunk64 => "orx-c64",
         }
     }
 }
@@ -208,8 +241,10 @@ fn main() {
         let output = match method {
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
-            Method::Con1 => con1_sum(&fs, work, num_threads),
-            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, num_threads),
+            Method::Con1 => con1_sum(&fs, work, num_threads, 1),
+            Method::Con1Chunk64 => con1_sum(&fs, work, num_threads, 64),
+            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, num_threads, 1),
+            Method::RecIterChunk64 => concurrent_recursive_iter_sum(&fs, work, num_threads, 64),
         };
         let elapsed = started.elapsed();
 
