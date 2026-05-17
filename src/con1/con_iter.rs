@@ -46,16 +46,16 @@ unsafe impl<T> Sync for LocalWorker<T> where T: Send {}
 ///
 /// This iterator is designed to be consumed through the generic [`ConcurrentIter`]
 /// trait API while still leveraging local work queues and cross-thread stealing.
-pub struct Con1<T, I, E>
+pub struct Con1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    injector: Arc<Injector<T>>,
+    injector: Arc<Injector<I::Item>>,
     extend: Arc<E>,
-    locals: Arc<Vec<LocalWorker<T>>>,
-    stealers: Arc<Vec<Stealer<T>>>,
+    locals: Arc<Vec<LocalWorker<I::Item>>>,
+    stealers: Arc<Vec<Stealer<I::Item>>>,
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
@@ -63,55 +63,58 @@ where
     _phantom: PhantomData<fn() -> I>,
 }
 
-pub struct SeqCon1<T, I, E>
+pub struct SeqCon1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    injector: Arc<Injector<T>>,
+    injector: Arc<Injector<I::Item>>,
     extend: Arc<E>,
-    locals: Arc<Vec<LocalWorker<T>>>,
-    stealers: Arc<Vec<Stealer<T>>>,
+    locals: Arc<Vec<LocalWorker<I::Item>>>,
+    stealers: Arc<Vec<Stealer<I::Item>>>,
     pending: Arc<AtomicUsize>,
     popped: Arc<AtomicUsize>,
     stopped: Arc<AtomicBool>,
     _phantom: PhantomData<fn() -> I>,
 }
 
-pub struct Con1ChunkPuller<'a, T, I, E>
+pub struct Con1ChunkPuller<'a, I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    iter: &'a Con1<T, I, E>,
+    iter: &'a Con1<I, E>,
     chunk_size: usize,
     thread_idx: Option<usize>,
-    chunk_buffer: Vec<T>,
+    chunk_buffer: Vec<I::Item>,
 }
 
-impl<T, I, E> Con1<T, I, E>
+impl<I, E> Con1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
     fn decrement_pending(pending: &AtomicUsize) {
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
     }
 
-    fn owner_local<'a>(locals: &'a [LocalWorker<T>], thread_idx: usize) -> &'a Worker<T> {
+    fn owner_local<'a>(
+        locals: &'a [LocalWorker<I::Item>],
+        thread_idx: usize,
+    ) -> &'a Worker<I::Item> {
         let local_idx = thread_idx % locals.len();
         locals[local_idx].as_owner_worker()
     }
 
     fn steal_one_from_injector_or_others(
-        injector: &Injector<T>,
-        owner_local: &Worker<T>,
-        stealers: &[Stealer<T>],
+        injector: &Injector<I::Item>,
+        owner_local: &Worker<I::Item>,
+        stealers: &[Stealer<I::Item>],
         local_idx: usize,
-    ) -> Option<T> {
+    ) -> Option<I::Item> {
         loop {
             let from_injector = injector.steal_batch_and_pop(owner_local);
 
@@ -147,7 +150,10 @@ where
         }
     }
 
-    fn steal_one_global(injector: &Injector<T>, stealers: &[Stealer<T>]) -> Option<T> {
+    fn steal_one_global(
+        injector: &Injector<I::Item>,
+        stealers: &[Stealer<I::Item>],
+    ) -> Option<I::Item> {
         loop {
             match injector.steal() {
                 Steal::Success(item) => return Some(item),
@@ -176,15 +182,15 @@ where
     }
 
     fn next_impl(
-        injector: &Injector<T>,
+        injector: &Injector<I::Item>,
         extend: &E,
-        locals: &[LocalWorker<T>],
-        stealers: &[Stealer<T>],
+        locals: &[LocalWorker<I::Item>],
+        stealers: &[Stealer<I::Item>],
         pending: &AtomicUsize,
         popped: &AtomicUsize,
         stopped: &AtomicBool,
         thread_idx: Option<usize>,
-    ) -> Option<(usize, T)> {
+    ) -> Option<(usize, I::Item)> {
         if stopped.load(Ordering::Acquire) {
             return None;
         }
@@ -207,7 +213,7 @@ where
 
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
-        let children: Vec<T> = extend(&item).into_iter().collect();
+        let children: Vec<I::Item> = extend(&item).into_iter().collect();
         if !children.is_empty() && !stopped.load(Ordering::Acquire) {
             pending.fetch_add(children.len(), Ordering::Relaxed);
             match owner_local {
@@ -229,16 +235,16 @@ where
     }
 
     fn pull_batch_into_impl(
-        injector: &Injector<T>,
+        injector: &Injector<I::Item>,
         extend: &E,
-        locals: &[LocalWorker<T>],
-        stealers: &[Stealer<T>],
+        locals: &[LocalWorker<I::Item>],
+        stealers: &[Stealer<I::Item>],
         pending: &AtomicUsize,
         popped: &AtomicUsize,
         stopped: &AtomicBool,
         thread_idx: Option<usize>,
         chunk_size: usize,
-        chunk: &mut Vec<T>,
+        chunk: &mut Vec<I::Item>,
     ) -> Option<usize> {
         if chunk_size == 0 || stopped.load(Ordering::Acquire) {
             return None;
@@ -279,7 +285,7 @@ where
             let idx = popped.fetch_add(1, Ordering::Relaxed);
             begin_idx.get_or_insert(idx);
 
-            let children: Vec<T> = extend(&item).into_iter().collect();
+            let children: Vec<I::Item> = extend(&item).into_iter().collect();
             if !children.is_empty() && !stopped.load(Ordering::Acquire) {
                 pending.fetch_add(children.len(), Ordering::Relaxed);
                 match owner_local {
@@ -311,7 +317,7 @@ where
     }
 
     fn with_locals_count(
-        initial_elements: impl IntoIterator<Item = T>,
+        initial_elements: impl IntoIterator<Item = I::Item>,
         extend: E,
         num_locals: usize,
     ) -> Self {
@@ -323,10 +329,10 @@ where
         }
 
         let locals_count = num_locals.max(1);
-        let locals_vec: Vec<LocalWorker<T>> =
+        let locals_vec: Vec<LocalWorker<I::Item>> =
             (0..locals_count).map(|_| LocalWorker::new_fifo()).collect();
 
-        let stealers_vec: Vec<Stealer<T>> =
+        let stealers_vec: Vec<Stealer<I::Item>> =
             locals_vec.iter().map(|local| local.stealer()).collect();
 
         Self {
@@ -343,13 +349,13 @@ where
     }
 
     /// Creates a new refined crossbeam-backed recursive concurrent iterator.
-    pub fn new(initial_elements: impl IntoIterator<Item = T>, extend: E) -> Self {
+    pub fn new(initial_elements: impl IntoIterator<Item = I::Item>, extend: E) -> Self {
         Self::with_locals_count(initial_elements, extend, Self::default_num_locals())
     }
 
     /// Creates a new iterator with explicit local worker shard count.
     pub fn new_with_locals(
-        initial_elements: impl IntoIterator<Item = T>,
+        initial_elements: impl IntoIterator<Item = I::Item>,
         extend: E,
         num_locals: usize,
     ) -> Self {
@@ -358,7 +364,7 @@ where
 
     /// Creates a new iterator with known exact output length.
     pub fn new_exact(
-        initial_elements: impl IntoIterator<Item = T>,
+        initial_elements: impl IntoIterator<Item = I::Item>,
         extend: E,
         exact_len: usize,
     ) -> Self {
@@ -368,13 +374,13 @@ where
     }
 }
 
-impl<T, I, E> Iterator for SeqCon1<T, I, E>
+impl<I, E> Iterator for SeqCon1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    type Item = T;
+    type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         Con1::next_impl(
@@ -399,24 +405,24 @@ where
     }
 }
 
-impl<T, I, E> FusedIterator for SeqCon1<T, I, E>
+impl<I, E> FusedIterator for SeqCon1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
 }
 
-impl<'a, T, I, E> ChunkPuller for Con1ChunkPuller<'a, T, I, E>
+impl<'a, I, E> ChunkPuller for Con1ChunkPuller<'a, I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    type ChunkItem = T;
+    type ChunkItem = I::Item;
 
     type Chunk<'c>
-        = std::vec::Drain<'c, T>
+        = std::vec::Drain<'c, I::Item>
     where
         Self: 'c;
 
@@ -459,11 +465,11 @@ where
     }
 }
 
-impl<T, I, E> NewConcurrentIter for Con1<T, I, E>
+impl<I, E> NewConcurrentIter for Con1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
     fn next_with_thread_idx(&self, thread_idx: usize) -> Option<Self::Item> {
         Self::next_impl(
@@ -493,18 +499,18 @@ where
     }
 }
 
-impl<T, I, E> ConcurrentIter for Con1<T, I, E>
+impl<I, E> ConcurrentIter for Con1<I, E>
 where
-    T: Send,
-    I: IntoIterator<Item = T>,
-    E: Fn(&T) -> I + Send + Sync,
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
 {
-    type Item = T;
+    type Item = I::Item;
 
-    type SequentialIter = SeqCon1<T, I, E>;
+    type SequentialIter = SeqCon1<I, E>;
 
     type ChunkPuller<'i>
-        = Con1ChunkPuller<'i, T, I, E>
+        = Con1ChunkPuller<'i, I, E>
     where
         Self: 'i;
 
