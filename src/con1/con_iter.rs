@@ -47,6 +47,7 @@ unsafe impl<T> Sync for LocalWorker<T> where T: Send {}
 pub struct Con1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -63,6 +64,7 @@ where
 pub struct SeqCon1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -78,6 +80,7 @@ where
 pub struct Con1ChunkPuller<'a, I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -90,6 +93,7 @@ where
 impl<I, E> Con1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -372,6 +376,7 @@ where
 impl<I, E> Iterator for SeqCon1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -403,6 +408,7 @@ where
 impl<I, E> FusedIterator for SeqCon1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -411,6 +417,7 @@ where
 impl<'a, I, E> ChunkPuller for Con1ChunkPuller<'a, I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -463,6 +470,7 @@ where
 impl<I, E> NewConcurrentIter for Con1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -497,6 +505,7 @@ where
 impl<I, E> ConcurrentIter for Con1<I, E>
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
