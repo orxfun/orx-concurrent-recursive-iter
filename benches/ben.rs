@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 // const THREADS: [usize; 4] = [8, 16, 24, 32];
 const THREADS: [usize; 2] = [16, 32];
+const CHUNK_SIZE: usize = 64;
 
 #[derive(Clone)]
 struct DirNode {
@@ -236,9 +237,9 @@ enum Method {
     Seq,
     Rayon,
     Con1,
-    Con1Chunk64,
+    Con1Chunk,
     RecIter,
-    RecIterChunk64,
+    RecIterChunk,
 }
 
 impl Factors for Method {
@@ -252,9 +253,9 @@ impl Factors for Method {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
                 Self::Con1 => "con1",
-                Self::Con1Chunk64 => "con1-c64",
+                Self::Con1Chunk => "con1-c64",
                 Self::RecIter => "orx",
-                Self::RecIterChunk64 => "orx-c64",
+                Self::RecIterChunk => "orx-c64",
             }
             .to_string(),
         ]
@@ -266,9 +267,9 @@ impl Factors for Method {
                 Self::Seq => "s",
                 Self::Rayon => "r",
                 Self::Con1 => "c1",
-                Self::Con1Chunk64 => "c1-c64",
+                Self::Con1Chunk => "c1-c64",
                 Self::RecIter => "o",
-                Self::RecIterChunk64 => "o-c64",
+                Self::RecIterChunk => "o-c64",
             }
             .to_string(),
         ]
@@ -308,20 +309,23 @@ impl Experiment for Exp {
                 rayon_sum(input, input_variant.work, &pool)
             }
             Method::Con1 => con1_sum(input, input_variant.work, input_variant.num_threads, 1),
-            Method::Con1Chunk64 => {
-                con1_sum(input, input_variant.work, input_variant.num_threads, 64)
-            }
+            Method::Con1Chunk => con1_sum(
+                input,
+                input_variant.work,
+                input_variant.num_threads,
+                CHUNK_SIZE,
+            ),
             Method::RecIter => concurrent_recursive_iter_sum(
                 input,
                 input_variant.work,
                 input_variant.num_threads,
                 1,
             ),
-            Method::RecIterChunk64 => concurrent_recursive_iter_sum(
+            Method::RecIterChunk => concurrent_recursive_iter_sum(
                 input,
                 input_variant.work,
                 input_variant.num_threads,
-                64,
+                CHUNK_SIZE,
             ),
         }
     }
@@ -354,9 +358,9 @@ fn run(c: &mut Criterion) {
         Method::Seq,
         Method::Rayon,
         Method::Con1,
-        Method::Con1Chunk64,
+        Method::Con1Chunk,
         Method::RecIter,
-        Method::RecIterChunk64,
+        Method::RecIterChunk,
     ];
 
     Exp.bench(c, "ben", &treatments, &variants);
