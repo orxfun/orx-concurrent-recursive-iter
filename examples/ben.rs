@@ -1,10 +1,10 @@
 use clap::Parser;
-use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
+use orx_concurrent_iter::ChunkPuller;
 use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Parser)]
@@ -145,52 +145,40 @@ fn run_concurrent_iter<I>(
     iter: &I,
     fs: &FileSystem,
     work: usize,
-    num_threads: usize,
+    pool: &ThreadPool,
     chunk_size: usize,
 ) -> u64
 where
     I: NewConcurrentIter<Item = usize> + Sync,
 {
-    let num_threads = num_threads.max(1);
     let chunk_size = chunk_size.max(1);
-    let num_spawned = AtomicUsize::new(0);
 
-    std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(num_threads);
-        for thread_idx in 0..num_threads {
-            let num_spawned = &num_spawned;
-            handles.push(scope.spawn(move || {
-                num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < num_threads {
-                    core::hint::spin_loop();
-                }
-
-                let mut local_sum = 0u64;
-                if chunk_size == 1 {
-                    while let Some(idx) = iter.next_with_thread_idx(thread_idx) {
-                        local_sum += fs.nodes[idx].compute_score(work);
-                    }
-                } else {
-                    let mut puller = iter.chunk_puller_with_thread_idx(chunk_size, thread_idx);
-                    while let Some(chunk) = puller.pull() {
-                        local_sum += chunk
-                            .into_iter()
-                            .map(|idx| fs.nodes[idx].compute_score(work))
-                            .sum::<u64>();
-                    }
-                }
-                local_sum
-            }));
+    pool.broadcast(|ctx| {
+        let thread_idx = ctx.index();
+        let mut local_sum = 0u64;
+        if chunk_size == 1 {
+            while let Some(idx) = iter.next_with_thread_idx(thread_idx) {
+                local_sum += fs.nodes[idx].compute_score(work);
+            }
+        } else {
+            let mut puller = iter.chunk_puller_with_thread_idx(chunk_size, thread_idx);
+            while let Some(chunk) = puller.pull() {
+                local_sum += chunk
+                    .into_iter()
+                    .map(|idx| fs.nodes[idx].compute_score(work))
+                    .sum::<u64>();
+            }
         }
-
-        handles.into_iter().map(|h| h.join().unwrap()).sum()
+        local_sum
     })
+    .into_iter()
+    .sum()
 }
 
 fn concurrent_recursive_iter_sum(
     fs: &FileSystem,
     work: usize,
-    num_threads: usize,
+    pool: &ThreadPool,
     chunk_size: usize,
 ) -> u64 {
     let iter = ConcurrentRecursiveIter::new_exact(
@@ -201,17 +189,17 @@ fn concurrent_recursive_iter_sum(
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
-fn con1_sum(fs: &FileSystem, work: usize, num_threads: usize, chunk_size: usize) -> u64 {
+fn con1_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
     let iter = Con1::new_exact(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.iter().copied(),
         fs.nodes.len(),
     );
 
-    run_concurrent_iter(&iter, fs, work, num_threads, chunk_size)
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -242,7 +230,6 @@ fn run(
     fs: &FileSystem,
     work: usize,
     pool: &ThreadPool,
-    num_threads: usize,
     chunk_size: usize,
     expected: u64,
 ) -> Vec<(Method, Duration)> {
@@ -253,12 +240,12 @@ fn run(
         let output = match method {
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
-            Method::Con1 => con1_sum(&fs, work, num_threads, chunk_size),
-            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, num_threads, chunk_size),
+            Method::Con1 => con1_sum(&fs, work, pool, chunk_size),
+            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, pool, chunk_size),
         };
         let elapsed = started.elapsed();
 
-        assert_eq!(expected, output);
+        assert_eq!(expected, output, "{method:?}");
         rows.push((*method, elapsed));
     }
 
@@ -283,29 +270,14 @@ fn main() {
         .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
 
     // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::RecIter];
-    let methods = vec![Method::Rayon, Method::Con1, Method::RecIter];
+    // let methods = vec![Method::Rayon, Method::Con1, Method::RecIter];
+    let methods = vec![Method::Rayon, Method::Con1];
 
     for _ in 0..args.warm_up {
-        _ = run(
-            &methods,
-            &fs,
-            work,
-            &pool,
-            num_threads,
-            chunk_size,
-            expected,
-        );
+        _ = run(&methods, &fs, work, &pool, chunk_size, expected);
     }
 
-    let rows = run(
-        &methods,
-        &fs,
-        work,
-        &pool,
-        num_threads,
-        chunk_size,
-        expected,
-    );
+    let rows = run(&methods, &fs, work, &pool, chunk_size, expected);
 
     let max_nanos = rows
         .iter()
