@@ -1,6 +1,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use orx_concurrent_iter::ChunkPuller;
-use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
+use orx_concurrent_recursive_iter::{
+    Con1, Con2, ConcurrentRecursiveIter, NewConcurrentIter, Queue,
+};
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -187,6 +189,16 @@ fn con1_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) 
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
+fn con2_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    let iter = Con2::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
+        fs.nodes.len(),
+    );
+
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
+}
+
 #[derive(Clone)]
 struct Input {
     num_threads: usize,
@@ -227,6 +239,8 @@ enum Method {
     Rayon,
     Con1,
     Con1Chunk,
+    Con2,
+    Con2Chunk,
     RecIter,
     RecIterChunk,
 }
@@ -243,6 +257,8 @@ impl Factors for Method {
                 Self::Rayon => "rayon",
                 Self::Con1 => "con1",
                 Self::Con1Chunk => "con1-c64",
+                Self::Con2 => "con2",
+                Self::Con2Chunk => "con2-c64",
                 Self::RecIter => "orx",
                 Self::RecIterChunk => "orx-c64",
             }
@@ -257,6 +273,8 @@ impl Factors for Method {
                 Self::Rayon => "r",
                 Self::Con1 => "c1",
                 Self::Con1Chunk => "c1-c64",
+                Self::Con2 => "c2",
+                Self::Con2Chunk => "c2-c64",
                 Self::RecIter => "o",
                 Self::RecIterChunk => "o-c64",
             }
@@ -299,6 +317,8 @@ impl Experiment for Exp {
             Method::Rayon => rayon_sum(fs, input_variant.work, pool),
             Method::Con1 => con1_sum(fs, input_variant.work, pool, 1),
             Method::Con1Chunk => con1_sum(fs, input_variant.work, pool, CHUNK_SIZE),
+            Method::Con2 => con2_sum(fs, input_variant.work, pool, 1),
+            Method::Con2Chunk => con2_sum(fs, input_variant.work, pool, CHUNK_SIZE),
             Method::RecIter => concurrent_recursive_iter_sum(fs, input_variant.work, pool, 1),
             Method::RecIterChunk => {
                 concurrent_recursive_iter_sum(fs, input_variant.work, pool, CHUNK_SIZE)
@@ -340,6 +360,8 @@ fn run(c: &mut Criterion) {
         Method::Rayon,
         Method::Con1,
         Method::Con1Chunk,
+        Method::Con2,
+        Method::Con2Chunk,
         Method::RecIter,
         Method::RecIterChunk,
     ];
