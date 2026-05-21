@@ -1,6 +1,6 @@
 use clap::Parser;
 use orx_concurrent_iter::ChunkPuller;
-use orx_concurrent_recursive_iter::{Con1, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
+use orx_concurrent_recursive_iter::{Con1, Con2, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
@@ -202,17 +202,28 @@ fn con1_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) 
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
+fn con2_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    let iter = Con2::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
+        fs.nodes.len(),
+    );
+
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Method {
     Seq,
     Rayon,
     Con1,
+    Con2,
     RecIter,
 }
 
 impl Method {
-    fn all() -> [Self; 4] {
-        [Self::Seq, Self::Rayon, Self::Con1, Self::RecIter]
+    fn all() -> [Self; 5] {
+        [Self::Seq, Self::Rayon, Self::Con1, Self::Con2, Self::RecIter]
     }
 
     fn label(self) -> &'static str {
@@ -220,6 +231,7 @@ impl Method {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
             Self::Con1 => "con1",
+            Self::Con2 => "con2",
             Self::RecIter => "orx",
         }
     }
@@ -241,6 +253,7 @@ fn run(
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
             Method::Con1 => con1_sum(&fs, work, pool, chunk_size),
+            Method::Con2 => con2_sum(&fs, work, pool, chunk_size),
             Method::RecIter => concurrent_recursive_iter_sum(&fs, work, pool, chunk_size),
         };
         let elapsed = started.elapsed();
@@ -269,9 +282,9 @@ fn main() {
         .build()
         .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
 
-    // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::RecIter];
-    // let methods = vec![Method::Rayon, Method::Con1, Method::RecIter];
-    let methods = vec![Method::Rayon, Method::Con1];
+    // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
+    // let methods = vec![Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
+    let methods = vec![Method::Rayon, Method::Con1, Method::Con2];
 
     for _ in 0..args.warm_up {
         _ = run(&methods, &fs, work, &pool, chunk_size, expected);
