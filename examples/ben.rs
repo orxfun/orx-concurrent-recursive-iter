@@ -1,6 +1,8 @@
 use clap::Parser;
 use orx_concurrent_iter::ChunkPuller;
-use orx_concurrent_recursive_iter::{Con1, Con2, ConcurrentRecursiveIter, NewConcurrentIter, Queue};
+use orx_concurrent_recursive_iter::{
+    Con1, Con2, ConcurrentRecursiveIter, NewConcurrentIter, Queue,
+};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
@@ -223,7 +225,13 @@ enum Method {
 
 impl Method {
     fn all() -> [Self; 5] {
-        [Self::Seq, Self::Rayon, Self::Con1, Self::Con2, Self::RecIter]
+        [
+            Self::Seq,
+            Self::Rayon,
+            Self::Con1,
+            Self::Con2,
+            Self::RecIter,
+        ]
     }
 
     fn label(self) -> &'static str {
