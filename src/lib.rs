@@ -12,7 +12,6 @@
 )]
 // #![no_std]
 
-#[cfg(test)]
 extern crate alloc;
 // #[cfg(test)]
 // extern crate std;
@@ -25,6 +24,7 @@ extern crate alloc;
 // mod con_iter;
 mod archive2;
 mod con1;
+mod con2;
 mod concurrent_iter_cross;
 mod concurrent_iter_cross_seg;
 mod concurrent_recursive_iter_shards;
@@ -38,6 +38,7 @@ pub use orx_concurrent_iter::*;
 
 pub use archive2::{ConcurrentRecursiveIter, Queue};
 pub use con1::Con1;
+pub use con2::Con2;
 pub use concurrent_iter_cross::ConcurrentIterCross;
 pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
