@@ -46,7 +46,13 @@ where
         }
         let pending = injector.len();
 
-        let locals_count = num_locals.unwrap_or(Self::default_num_locals()).max(1);
+        let locals_count = num_locals
+            .unwrap_or_else(|| {
+                std::thread::available_parallelism()
+                    .map(usize::from)
+                    .unwrap_or(1)
+            })
+            .max(1);
         let locals_vec: Vec<LocalWorker<I::Item>> =
             (0..locals_count).map(|_| LocalWorker::new_fifo()).collect();
 
@@ -65,11 +71,11 @@ where
         }
     }
 
-    pub(super) fn decrement_pending(pending: &AtomicUsize) {
+    fn decrement_pending(pending: &AtomicUsize) {
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
     }
 
-    pub(super) fn owner_local<'a>(
+    fn owner_local<'a>(
         locals: &'a [LocalWorker<I::Item>],
         thread_idx: usize,
     ) -> &'a Worker<I::Item> {
@@ -214,6 +220,7 @@ where
         chunk_size: usize,
         chunk: &mut Vec<I::Item>,
     ) -> Option<usize> {
+        debug_assert!(chunk.is_empty());
         if chunk_size == 0 || stopped.load(Ordering::Acquire) {
             return None;
         }
@@ -275,13 +282,6 @@ where
         }
 
         begin_idx
-    }
-
-    fn default_num_locals() -> usize {
-        let p = std::thread::available_parallelism()
-            .map(usize::from)
-            .unwrap_or(1);
-        p.max(1)
     }
 }
 

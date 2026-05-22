@@ -45,10 +45,9 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.stopped.load(Ordering::Acquire) || self.pending.load(Ordering::Acquire) == 0 {
-            (0, Some(0))
-        } else {
-            (0, None)
+        match self.stopped.load(Ordering::Acquire) || self.pending.load(Ordering::Acquire) == 0 {
+            true => (0, Some(0)),
+            false => (0, None),
         }
     }
 }
