@@ -7,5 +7,5 @@ mod con_iter;
 mod dyn_seq_queue;
 mod queue;
 
-pub use con_iter::ConcurrentRecursiveIter;
+pub use con_iter::ConcurrentRecursiveIterQueue;
 pub use queue::Queue;

@@ -75,7 +75,7 @@ use orx_split_vec::SplitVec;
 /// // initiate iter with a single element, `root`
 /// // however, the iterator will `extend` on the fly as we keep drawing its elements
 /// let root = Node::new(&mut ChaCha8Rng::seed_from_u64(42), 70);
-/// let iter = ConcurrentRecursiveIter::new([&root], extend);
+/// let iter = ConcurrentRecursiveIterQueue::new([&root], extend);
 ///
 /// let num_threads = 8;
 /// let num_spawned = AtomicUsize::new(0);
@@ -101,7 +101,7 @@ use orx_split_vec::SplitVec;
 ///
 /// assert_eq!(num_processed_nodes.into_inner(), 177);
 /// ```
-pub struct ConcurrentRecursiveIter<T, E, P = DefaultConPinnedVec<T>>
+pub struct ConcurrentRecursiveIterQueue<T, E, P = DefaultConPinnedVec<T>>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
@@ -113,7 +113,7 @@ where
     exact_len: Option<usize>,
 }
 
-impl<T, E, P> From<(ConcurrentQueue<T, P>, E)> for ConcurrentRecursiveIter<T, E, P>
+impl<T, E, P> From<(ConcurrentQueue<T, P>, E)> for ConcurrentRecursiveIterQueue<T, E, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
@@ -129,7 +129,7 @@ where
     }
 }
 
-impl<T, E, P> From<(ConcurrentQueue<T, P>, E, usize)> for ConcurrentRecursiveIter<T, E, P>
+impl<T, E, P> From<(ConcurrentQueue<T, P>, E, usize)> for ConcurrentRecursiveIterQueue<T, E, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,
@@ -145,7 +145,7 @@ where
     }
 }
 
-impl<T, E> ConcurrentRecursiveIter<T, E, DefaultConPinnedVec<T>>
+impl<T, E> ConcurrentRecursiveIterQueue<T, E, DefaultConPinnedVec<T>>
 where
     T: Send,
     E: Fn(&T, &Queue<T, DefaultConPinnedVec<T>>) + Sync,
@@ -177,14 +177,14 @@ where
     ///   when the recursive iterator is used as the input of a parallel iterator of the
     ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
     ///
-    /// [`new_exact`]: ConcurrentRecursiveIter::new_exact
+    /// [`new_exact`]: ConcurrentRecursiveIterQueue::new_exact
     ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
     ///
     /// ```
-    /// use orx_concurrent_recursive_iter::{ConcurrentRecursiveIter, Queue};
+    /// use orx_concurrent_recursive_iter::{ConcurrentRecursiveIterQueue, Queue};
     /// use orx_concurrent_iter::ConcurrentIter;
     ///
     /// let extend = |x: &usize, queue: &Queue<usize>| {
@@ -195,7 +195,7 @@ where
     ///
     /// let initial_elements = [1];
     ///
-    /// let iter = ConcurrentRecursiveIter::new(initial_elements, extend);
+    /// let iter = ConcurrentRecursiveIterQueue::new(initial_elements, extend);
     /// let all: Vec<_> = iter.item_puller().collect();
     ///
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -230,7 +230,7 @@ where
     /// // SplitVec with Linear growth
     /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
     /// queue.extend(initial_elements);
-    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Linear>>));
+    /// let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Linear>>));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -238,7 +238,7 @@ where
     /// // FixedVec with fixed capacity
     /// let queue = ConcurrentQueue::with_fixed_capacity(5);
     /// queue.extend(initial_elements);
-    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<FixedVec<_>>));
+    /// let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<FixedVec<_>>));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -282,14 +282,14 @@ where
     ///   when the recursive iterator is used as the input of a parallel iterator of the
     ///   [orx_parallel](https://crates.io/crates/orx-parallel) crate.
     ///
-    /// [`new_exact`]: ConcurrentRecursiveIter::new_exact
+    /// [`new_exact`]: ConcurrentRecursiveIterQueue::new_exact
     ///
     /// # Examples
     ///
     /// The following is a simple example to demonstrate how the dynamic iterator works.
     ///
     /// ```
-    /// use orx_concurrent_recursive_iter::{ConcurrentRecursiveIter, Queue};
+    /// use orx_concurrent_recursive_iter::{ConcurrentRecursiveIterQueue, Queue};
     /// use orx_concurrent_iter::ConcurrentIter;
     ///
     /// let extend = |x: &usize, queue: &Queue<usize>| {
@@ -300,7 +300,7 @@ where
     ///
     /// let initial_elements = [1];
     ///
-    /// let iter = ConcurrentRecursiveIter::new(initial_elements, extend);
+    /// let iter = ConcurrentRecursiveIterQueue::new(initial_elements, extend);
     /// let all: Vec<_> = iter.item_puller().collect();
     ///
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -335,7 +335,7 @@ where
     /// // SplitVec with Linear growth
     /// let queue = ConcurrentQueue::with_linear_growth(10, 4);
     /// queue.extend(initial_elements);
-    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<SplitVec<_, Linear>>));
+    /// let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Linear>>));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -343,7 +343,7 @@ where
     /// // FixedVec with fixed capacity
     /// let queue = ConcurrentQueue::with_fixed_capacity(5);
     /// queue.extend(initial_elements);
-    /// let iter = ConcurrentRecursiveIter::from((queue, extend::<FixedVec<_>>));
+    /// let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<FixedVec<_>>));
     ///
     /// let all: Vec<_> = iter.item_puller().collect();
     /// assert_eq!(all, [1, 2, 3, 4, 5]);
@@ -365,7 +365,7 @@ where
     }
 }
 
-impl<T, E, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, P>
+impl<T, E, P> ConcurrentIter for ConcurrentRecursiveIterQueue<T, E, P>
 where
     T: Send,
     P: ConcurrentPinnedVec<T>,

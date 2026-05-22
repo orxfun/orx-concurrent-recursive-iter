@@ -186,11 +186,26 @@ fn orx(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u6
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
+#[cfg(feature = "experimental")]
+fn orx_queue(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    use orx_concurrent_recursive_iter::{ConcurrentRecursiveIterQueue, Queue};
+
+    let iter = ConcurrentRecursiveIterQueue::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize, q: &Queue<'_, _>| q.extend(fs.nodes[*idx].children.iter().copied()),
+        fs.nodes.len(),
+    );
+
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Method {
     Seq,
     Rayon,
     Orx,
+    #[cfg(feature = "experimental")]
+    OrxQueue,
 }
 
 impl Method {
@@ -203,6 +218,8 @@ impl Method {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
             Self::Orx => "orx",
+            #[cfg(feature = "experimental")]
+            Self::OrxQueue => "orx-queue",
         }
     }
 }
@@ -223,6 +240,8 @@ fn run(
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
             Method::Orx => orx(fs, work, pool, chunk_size),
+            #[cfg(feature = "experimental")]
+            Method::OrxQueue => orx_queue(fs, work, pool, chunk_size),
         };
         let elapsed = started.elapsed();
 
@@ -250,9 +269,10 @@ fn main() {
         .build()
         .unwrap_or_else(|e| panic!("failed to build rayon pool: {e}"));
 
-    // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
-    // let methods = vec![Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
-    let methods = vec![Method::Rayon, Method::Orx];
+    #[cfg(not(feature = "experimental"))]
+    let methods = vec![Method::Seq, Method::Rayon, Method::Orx];
+    #[cfg(feature = "experimental")]
+    let methods = vec![Method::Seq, Method::Rayon, Method::Orx, Method::OrxQueue];
 
     for _ in 0..args.warm_up {
         _ = run(&methods, &fs, work, &pool, chunk_size, expected);
@@ -272,6 +292,6 @@ fn main() {
             n => ((elapsed.as_nanos() * 40 + (n / 2)) / n) as usize,
         };
         let bar = "▆".repeat(bar_len);
-        println!("{:<6} {:>10?}\t{}", method.label(), elapsed, bar);
+        println!("{:<10} {:>10?}\t{}", method.label(), elapsed, bar);
     }
 }

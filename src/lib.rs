@@ -22,9 +22,8 @@ mod cross_no_std;
 #[cfg(feature = "std")]
 mod cross_std;
 
-mod extend;
-
-// mod orx_queue;
+#[cfg(feature = "experimental")]
+mod orx_queue;
 
 #[cfg(not(feature = "std"))]
 pub type ConcurrentRecursiveIter<I, E> = cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd<I, E>;
@@ -33,6 +32,9 @@ pub type ConcurrentRecursiveIter<I, E> = cross_no_std::ConcurrentRecursiveIterCr
 pub type ConcurrentRecursiveIter<I, E> = cross_std::ConcurrentRecursiveIterCrossbeamStd<I, E>;
 
 pub use orx_concurrent_iter::*;
+
+#[cfg(feature = "experimental")]
+pub use orx_queue::{ConcurrentRecursiveIterQueue, Queue};
 
 #[cfg(test)]
 mod abc {
