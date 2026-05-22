@@ -1,4 +1,4 @@
-use crate::cross_nostd::queue::Queue;
+use crate::cross_no_std::queue::Queue;
 use alloc::sync::Arc;
 use core::iter::FusedIterator;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

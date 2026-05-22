@@ -1,4 +1,4 @@
-use crate::cross_nostd::{chunk::DynChunk, con_iter::ConcurrentRecursiveIterCrossbeamNoStd};
+use crate::cross_no_std::{chunk::DynChunk, con_iter::ConcurrentRecursiveIterCrossbeamNoStd};
 use orx_concurrent_iter::ChunkPuller;
 
 pub struct DynChunkPuller<'a, I, E>

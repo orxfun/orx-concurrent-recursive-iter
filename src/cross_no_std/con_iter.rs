@@ -1,5 +1,5 @@
 use crate::{
-    cross_nostd::{
+    cross_no_std::{
         chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqCrossbeamNoStd, queue::Queue,
     },
     new_con_iter::NewConcurrentIter,
@@ -37,6 +37,7 @@ where
         initial_elements: impl IntoIterator<Item = I::Item>,
         extend: E,
         exact_len: Option<usize>,
+        _num_locals: Option<usize>,
     ) -> Self {
         let queue = Arc::new(Queue::new());
         let mut pending = 0usize;
