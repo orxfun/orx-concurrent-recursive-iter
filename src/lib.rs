@@ -16,17 +16,9 @@ extern crate alloc;
 // #[cfg(test)]
 // extern crate std;
 
-// #[cfg(test)]
-// mod tests;
-
-// mod chunk;
-// mod chunk_puller;
-// mod con_iter;
 mod cross_no_std;
 mod cross_std;
 mod orx_queue;
-// mod dyn_seq_queue;
-// mod queue;
 
 // re-import
 pub use cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd;
