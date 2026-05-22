@@ -407,7 +407,7 @@ dependencies = [
 [[package]]
 name = "orx-concurrent-iter"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-concurrent-iter/?branch=v4#bc60b807dd9d3aa8a8bce93434a9b812ffbd0c7a"
+source = "git+https://github.com/orxfun/orx-concurrent-iter/?branch=v4#3f1f679db3311b6c88b281c6ee382a6f421e3de9"
 dependencies = [
  "orx-iterable",
  "orx-pseudo-default",
@@ -416,13 +416,11 @@ dependencies = [
 [[package]]
 name = "orx-concurrent-queue"
 version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b096e39c0ac22afd0168c91a14b22657ce3d8c0a21fc9cf45461265699bff35"
 dependencies = [
- "crossbeam-deque",
- "crossbeam-queue",
- "crossbeam-utils",
  "orx-fixed-vec",
  "orx-pinned-vec",
- "orx-pseudo-default",
  "orx-split-vec",
 ]
 
