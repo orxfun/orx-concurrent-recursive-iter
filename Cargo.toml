@@ -10,13 +10,13 @@ keywords = ["concurrency", "iterator", "iteration", "recursive", "parallelism"]
 categories = ["data-structures", "concurrency", "rust-patterns", "no-std"]
 
 [dependencies]
+orx-concurrent-queue = { path = "../orx-concurrent-queue", default-features = false }
 crossbeam-deque = { version = "0.8.6", default-features = false }
 crossbeam-queue = { version = "0.3.12", default-features = false }
 orx-concurrent-iter = { git = "https://github.com/orxfun/orx-concurrent-iter/", branch = "v4" }
 orx-pinned-vec = { version = "3.21.0", default-features = false }
 orx-split-vec = { version = "3.22.0", default-features = false }
 orx-fixed-vec = { version = "3.22.0", default-features = false }
-orx-concurrent-queue = { path = "../orx-concurrent-queue", default-features = false }
 orx-pseudo-default = { version = "2.1.0", default-features = false }
 
 [dev-dependencies]
@@ -33,7 +33,6 @@ test-case = { version = "3.3.1" }
 [features]
 default = ["std"]
 std = []
-experimental = []
 
 # benchmarks
 

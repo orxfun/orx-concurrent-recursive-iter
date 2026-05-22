@@ -13,6 +13,7 @@
 // #![no_std]
 
 extern crate alloc;
+
 // #[cfg(test)]
 // extern crate std;
 
@@ -23,4 +24,3 @@ mod orx_queue;
 // re-import
 pub use cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd;
 pub use cross_std::ConcurrentRecursiveIterCrossbeam;
-pub use orx_concurrent_iter::*;
