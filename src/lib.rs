@@ -22,6 +22,8 @@ mod cross_no_std;
 #[cfg(feature = "std")]
 mod cross_std;
 
+mod extend;
+
 // mod orx_queue;
 
 #[cfg(not(feature = "std"))]
