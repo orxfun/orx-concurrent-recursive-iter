@@ -497,7 +497,7 @@ where
             iter: self,
             chunk_size,
             thread_idx: Some(thread_idx),
-            chunk_buffer: Vec::new(),
+            chunk_buffer: Default::default(),
         }
     }
 }
@@ -595,7 +595,7 @@ where
             iter: self,
             chunk_size,
             thread_idx: None,
-            chunk_buffer: Vec::new(),
+            chunk_buffer: Default::default(),
         }
     }
 }

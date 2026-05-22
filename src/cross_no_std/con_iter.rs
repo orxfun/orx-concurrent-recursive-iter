@@ -166,7 +166,7 @@ where
             iter: self,
             chunk_size,
             thread_idx: Some(thread_idx),
-            chunk_buffer: Vec::new(),
+            chunk_buffer: Default::default(),
         }
     }
 }
@@ -216,6 +216,18 @@ where
         .map(|(_, x)| x)
     }
 
+    fn next_by(&self, thread_idx: usize) -> Option<Self::Item> {
+        Self::next_impl(
+            &self.queue,
+            &*self.extend,
+            &self.pending,
+            &self.popped,
+            &self.stopped,
+            Some(thread_idx),
+        )
+        .map(|(_, x)| x)
+    }
+
     fn next_with_idx(&self) -> Option<(usize, Self::Item)> {
         Self::next_impl(
             &self.queue,
@@ -224,6 +236,17 @@ where
             &self.popped,
             &self.stopped,
             None,
+        )
+    }
+
+    fn next_with_idx_by(&self, thread_idx: usize) -> Option<(usize, Self::Item)> {
+        Self::next_impl(
+            &self.queue,
+            &*self.extend,
+            &self.pending,
+            &self.popped,
+            &self.stopped,
+            Some(thread_idx),
         )
     }
 
@@ -256,7 +279,16 @@ where
             iter: self,
             chunk_size,
             thread_idx: None,
-            chunk_buffer: Vec::new(),
+            chunk_buffer: Default::default(),
+        }
+    }
+
+    fn chunk_puller_by(&self, chunk_size: usize, thread_idx: usize) -> Self::ChunkPuller<'_> {
+        DynChunkPuller {
+            iter: self,
+            chunk_size,
+            thread_idx: Some(thread_idx),
+            chunk_buffer: Default::default(),
         }
     }
 }
