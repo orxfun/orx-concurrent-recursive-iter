@@ -144,6 +144,61 @@ fn size_hint() {
 }
 
 #[test]
+fn size_hint_exact() {
+    // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
+    let extend = |s: &String| {
+        let i: usize = s.parse().unwrap();
+        (0..i).map(|x| x.to_string())
+    };
+    let iter = ConcurrentRecursiveIterCrossbeam::new_exact(vec(3), extend, 14);
+
+    // 1 2 3
+    assert_eq!(iter.size_hint(), (14, Some(14)));
+
+    _ = iter.next(); // 2 3 0
+    assert_eq!(iter.size_hint(), (13, Some(13)));
+
+    _ = iter.next(); // 3 0 0 1
+    assert_eq!(iter.size_hint(), (12, Some(12)));
+
+    _ = iter.next(); // 0 0 1 0 1 2
+    assert_eq!(iter.size_hint(), (11, Some(11)));
+
+    _ = iter.next(); // 0 1 0 1 2
+    assert_eq!(iter.size_hint(), (10, Some(10)));
+
+    _ = iter.next(); // 1 0 1 2
+    assert_eq!(iter.size_hint(), (9, Some(9)));
+
+    _ = iter.next(); // 0 1 2 0
+    assert_eq!(iter.size_hint(), (8, Some(8)));
+
+    _ = iter.next(); // 1 2 0
+    assert_eq!(iter.size_hint(), (7, Some(7)));
+
+    _ = iter.next(); // 2 0 0
+    assert_eq!(iter.size_hint(), (6, Some(6)));
+
+    _ = iter.next(); // 0 0 0 1
+    assert_eq!(iter.size_hint(), (5, Some(5)));
+
+    _ = iter.next(); // 0 0 1
+    assert_eq!(iter.size_hint(), (4, Some(4)));
+
+    _ = iter.next(); // 0 1
+    assert_eq!(iter.size_hint(), (3, Some(3)));
+
+    _ = iter.next(); // 1
+    assert_eq!(iter.size_hint(), (2, Some(2)));
+
+    _ = iter.next(); // 0
+    assert_eq!(iter.size_hint(), (1, Some(1)));
+
+    _ = iter.next(); // []
+    assert_eq!(iter.size_hint(), (0, Some(0)));
+}
+
+#[test]
 fn size_hint_skip_to_end() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
