@@ -32,12 +32,6 @@ impl Node {
 
         Self { numbers, children }
     }
-
-    fn num_children(&self) -> usize {
-        let children = self.children.len();
-        let grand_children: usize = self.children.iter().map(|x| x.num_children()).sum();
-        children + grand_children
-    }
 }
 
 pub struct Roots(pub Vec<Node>);
@@ -46,10 +40,6 @@ impl Roots {
     pub fn new(num_roots: usize, n: usize, seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         Self((0..num_roots).map(|_| Node::new(n, &mut rng)).collect())
-    }
-
-    pub fn num_nodes(&self) -> usize {
-        self.0.len() + self.0.iter().map(|x| x.num_children()).sum::<usize>()
     }
 
     pub fn as_slice(&self) -> &[Node] {
