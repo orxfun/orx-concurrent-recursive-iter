@@ -89,7 +89,7 @@ fn basic_iter_with_idx() {
 }
 
 #[test]
-fn size_hint_xyz() {
+fn size_hint() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
         let i: usize = s.parse().unwrap();
