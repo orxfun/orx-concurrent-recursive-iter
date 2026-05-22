@@ -7,8 +7,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// const THREADS: [usize; 4] = [8, 16, 24, 32];
-const THREADS: [usize; 2] = [8, 32];
+const THREADS: [usize; 3] = [8, 16, 32];
 const CHUNK_SIZE: usize = 64;
 
 #[derive(Clone)]
@@ -343,7 +342,9 @@ fn run(c: &mut Criterion) {
         Method::Rayon,
         Method::Orx,
         Method::OrxChunk,
+        #[cfg(feature = "experimental")]
         Method::OrxQueue,
+        #[cfg(feature = "experimental")]
         Method::OrxQueueChunk,
     ];
 
