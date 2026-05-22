@@ -1,8 +1,7 @@
 use clap::Parser;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIter, ConcurrentRecursiveIterCrossbeam,
-    ConcurrentRecursiveIterCrossbeamNoStd, Queue,
+    ConcurrentRecursiveIterCrossbeam, ConcurrentRecursiveIterCrossbeamNoStd,
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -178,23 +177,6 @@ where
     .sum()
 }
 
-fn concurrent_recursive_iter_sum(
-    fs: &FileSystem,
-    work: usize,
-    pool: &ThreadPool,
-    chunk_size: usize,
-) -> u64 {
-    let iter = ConcurrentRecursiveIter::new_exact(
-        fs.roots.iter().copied(),
-        |idx: &usize, queue: &Queue<usize>| {
-            queue.extend(fs.nodes[*idx].children.iter().copied());
-        },
-        fs.nodes.len(),
-    );
-
-    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
-}
-
 fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
     let iter = ConcurrentRecursiveIterCrossbeam::new(
         fs.roots.iter().copied(),
@@ -223,18 +205,11 @@ enum Method {
     Rayon,
     CrossStd,
     CrossNoStd,
-    RecIter,
 }
 
 impl Method {
-    fn all() -> [Self; 5] {
-        [
-            Self::Seq,
-            Self::Rayon,
-            Self::CrossStd,
-            Self::CrossNoStd,
-            Self::RecIter,
-        ]
+    fn all() -> [Self; 4] {
+        [Self::Seq, Self::Rayon, Self::CrossStd, Self::CrossNoStd]
     }
 
     fn label(self) -> &'static str {
@@ -243,7 +218,6 @@ impl Method {
             Self::Rayon => "rayon",
             Self::CrossStd => "cross-std",
             Self::CrossNoStd => "cross-no-std",
-            Self::RecIter => "orx",
         }
     }
 }
@@ -265,7 +239,6 @@ fn run(
             Method::Rayon => rayon_sum(&fs, work, &pool),
             Method::CrossStd => cross_std_sum(fs, work, pool, chunk_size),
             Method::CrossNoStd => cross_no_std_sum(fs, work, pool, chunk_size),
-            Method::RecIter => concurrent_recursive_iter_sum(&fs, work, pool, chunk_size),
         };
         let elapsed = started.elapsed();
 

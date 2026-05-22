@@ -1,8 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIter, ConcurrentRecursiveIterCrossbeam,
-    ConcurrentRecursiveIterCrossbeamNoStd, Queue,
+    ConcurrentRecursiveIterCrossbeam, ConcurrentRecursiveIterCrossbeamNoStd,
 };
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
@@ -163,23 +162,6 @@ where
     .sum()
 }
 
-fn concurrent_recursive_iter_sum(
-    fs: &FileSystem,
-    work: usize,
-    pool: &ThreadPool,
-    chunk_size: usize,
-) -> u64 {
-    let iter = ConcurrentRecursiveIter::new_exact(
-        fs.roots.iter().copied(),
-        |idx: &usize, queue: &Queue<usize>| {
-            queue.extend(fs.nodes[*idx].children.iter().copied());
-        },
-        fs.nodes.len(),
-    );
-
-    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
-}
-
 fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
     let iter = ConcurrentRecursiveIterCrossbeam::new(
         fs.roots.iter().copied(),
@@ -244,8 +226,6 @@ enum Method {
     CrossStdChunk,
     CrossNoStd,
     CrossNoStdChunk,
-    RecIter,
-    RecIterChunk,
 }
 
 impl Factors for Method {
@@ -262,8 +242,6 @@ impl Factors for Method {
                 Self::CrossStdChunk => "cross-std-c64",
                 Self::CrossNoStd => "cross-no-std",
                 Self::CrossNoStdChunk => "cross-no-std-c64",
-                Self::RecIter => "orx",
-                Self::RecIterChunk => "orx-c64",
             }
             .to_string(),
         ]
@@ -278,8 +256,6 @@ impl Factors for Method {
                 Self::CrossStdChunk => "cs-c64",
                 Self::CrossNoStd => "cns",
                 Self::CrossNoStdChunk => "cns-c64",
-                Self::RecIter => "o",
-                Self::RecIterChunk => "o-c64",
             }
             .to_string(),
         ]
@@ -322,10 +298,6 @@ impl Experiment for Exp {
             Method::CrossStdChunk => cross_std_sum(fs, input_variant.work, pool, CHUNK_SIZE),
             Method::CrossNoStd => cross_no_std_sum(fs, input_variant.work, pool, 1),
             Method::CrossNoStdChunk => cross_no_std_sum(fs, input_variant.work, pool, CHUNK_SIZE),
-            Method::RecIter => concurrent_recursive_iter_sum(fs, input_variant.work, pool, 1),
-            Method::RecIterChunk => {
-                concurrent_recursive_iter_sum(fs, input_variant.work, pool, CHUNK_SIZE)
-            }
         }
     }
 
@@ -365,8 +337,6 @@ fn run(c: &mut Criterion) {
         Method::CrossStdChunk,
         Method::CrossNoStd,
         Method::CrossNoStdChunk,
-        Method::RecIter,
-        Method::RecIterChunk,
     ];
 
     Exp.bench(c, "ben", &treatments, &variants);
