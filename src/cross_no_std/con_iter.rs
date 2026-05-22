@@ -228,19 +228,21 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.stopped.load(Ordering::Acquire) {
-            return (0, Some(0));
-        }
-
-        match self.exact_len {
-            Some(exact_len) => {
-                let popped = self.popped.load(Ordering::Relaxed);
-                let remaining = exact_len.saturating_sub(popped);
-                (remaining, Some(remaining))
-            }
-            None => match self.pending.load(Ordering::Acquire) == 0 {
-                true => (0, Some(0)),
-                false => (0, None),
+        match self.stopped.load(Ordering::Acquire) {
+            true => (0, Some(0)),
+            false => match self.exact_len {
+                Some(exact_len) => {
+                    let popped = self.popped.load(Ordering::Relaxed);
+                    let remaining = exact_len.saturating_sub(popped);
+                    (remaining, Some(remaining))
+                }
+                None => {
+                    let pending = self.pending.load(Ordering::Acquire);
+                    match pending {
+                        0 => (0, Some(0)),
+                        n => (n, None),
+                    }
+                }
             },
         }
     }

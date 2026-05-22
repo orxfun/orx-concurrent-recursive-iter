@@ -96,46 +96,46 @@ fn size_hint() {
     let iter = ConcurrentRecursiveIterCrossbeamNoStd::new(vec(3), extend, None, Some(4));
 
     // 1 2 3
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 2 3 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 3 0 0 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (4, None));
 
     _ = iter.next(); // 0 0 1 0 1 2
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (6, None));
 
     _ = iter.next(); // 0 1 0 1 2
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (5, None));
 
     _ = iter.next(); // 1 0 1 2
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (4, None));
 
     _ = iter.next(); // 0 1 2 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (4, None));
 
     _ = iter.next(); // 1 2 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 2 0 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 0 0 0 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (4, None));
 
     _ = iter.next(); // 0 0 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 0 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (2, None));
 
     _ = iter.next(); // 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (1, None));
 
     _ = iter.next(); // 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (1, None));
 
     _ = iter.next(); // []
     assert_eq!(iter.size_hint(), (0, Some(0)));
@@ -206,16 +206,16 @@ fn size_hint_skip_to_end() {
     let iter = ConcurrentRecursiveIterCrossbeamNoStd::new(vec(3), extend, None, None);
 
     // 1 2 3
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 2 3 0
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (3, None));
 
     _ = iter.next(); // 3 0 0 1
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (4, None));
 
     _ = iter.next(); // 0 0 1 0 1 2
-    assert_eq!(iter.size_hint(), (0, None));
+    assert_eq!(iter.size_hint(), (6, None));
 
     iter.skip_to_end();
     assert_eq!(iter.size_hint(), (0, Some(0)));
