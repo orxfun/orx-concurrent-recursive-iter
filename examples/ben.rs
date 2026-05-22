@@ -1,7 +1,7 @@
 use clap::Parser;
 use orx_concurrent_iter::ChunkPuller;
 use orx_concurrent_recursive_iter::{
-    Con1, Con2, ConcurrentRecursiveIter, NewConcurrentIter, Queue,
+    Con1, Con2, ConcurrentRecursiveIter, ConcurrentRecursiveIterCrossbeam, NewConcurrentIter, Queue,
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -214,21 +214,33 @@ fn con2_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) 
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
+fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    let iter = ConcurrentRecursiveIterCrossbeam::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
+        fs.nodes.len(),
+    );
+
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Method {
     Seq,
     Rayon,
     Con1,
+    CrossStd,
     Con2,
     RecIter,
 }
 
 impl Method {
-    fn all() -> [Self; 5] {
+    fn all() -> [Self; 6] {
         [
             Self::Seq,
             Self::Rayon,
             Self::Con1,
+            Self::CrossStd,
             Self::Con2,
             Self::RecIter,
         ]
@@ -239,6 +251,7 @@ impl Method {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
             Self::Con1 => "con1",
+            Self::CrossStd => "cross-std",
             Self::Con2 => "con2",
             Self::RecIter => "orx",
         }
@@ -261,6 +274,7 @@ fn run(
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
             Method::Con1 => con1_sum(&fs, work, pool, chunk_size),
+            Method::CrossStd => cross_std_sum(fs, work, pool, chunk_size),
             Method::Con2 => con2_sum(&fs, work, pool, chunk_size),
             Method::RecIter => concurrent_recursive_iter_sum(&fs, work, pool, chunk_size),
         };
@@ -292,7 +306,7 @@ fn main() {
 
     // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
     // let methods = vec![Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
-    let methods = vec![Method::Rayon, Method::Con1, Method::Con2];
+    let methods = vec![Method::Rayon, Method::Con1, Method::CrossStd, Method::Con2];
 
     for _ in 0..args.warm_up {
         _ = run(&methods, &fs, work, &pool, chunk_size, expected);
