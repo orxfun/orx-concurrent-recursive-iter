@@ -73,10 +73,7 @@ where
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
     }
 
-    fn owner_local<'a>(
-        locals: &'a [LocalWorker<I::Item>],
-        thread_idx: usize,
-    ) -> &'a Worker<I::Item> {
+    fn owner_local(locals: &[LocalWorker<I::Item>], thread_idx: usize) -> &Worker<I::Item> {
         let local_idx = thread_idx % locals.len();
         locals[local_idx].as_owner_worker()
     }
@@ -201,6 +198,7 @@ where
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn next_impl(
         injector: &Queue<I::Item>,
         extend: &E,
@@ -239,6 +237,7 @@ where
         Some((idx, item))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn pull_batch_into_impl(
         injector: &Queue<I::Item>,
         extend: &E,

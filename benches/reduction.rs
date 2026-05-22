@@ -303,9 +303,9 @@ impl Experiment for Exp {
             Method::Orx => orx(fs, input_variant.work, pool, 1),
             Method::OrxChunk => orx(fs, input_variant.work, pool, CHUNK_SIZE),
             #[cfg(feature = "experimental")]
-            Method::OrxQueue => orx(fs, input_variant.work, pool, 1),
+            Method::OrxQueue => orx_queue(fs, input_variant.work, pool, 1),
             #[cfg(feature = "experimental")]
-            Method::OrxQueueChunk => orx(fs, input_variant.work, pool, CHUNK_SIZE),
+            Method::OrxQueueChunk => orx_queue(fs, input_variant.work, pool, CHUNK_SIZE),
         }
     }
 
@@ -339,10 +339,12 @@ fn run(c: &mut Criterion) {
         .collect();
 
     let variants = vec![
-        // Method::Seq,
+        Method::Seq,
         Method::Rayon,
         Method::Orx,
         Method::OrxChunk,
+        Method::OrxQueue,
+        Method::OrxQueueChunk,
     ];
 
     Exp.bench(c, "ben", &treatments, &variants);

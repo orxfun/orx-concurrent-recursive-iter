@@ -108,6 +108,7 @@ where
         Some((idx, item))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn pull_batch_into_impl(
         queue: &Queue<I::Item>,
         extend: &E,
