@@ -1,4 +1,3 @@
-use crate::new_con_iter::NewConcurrentIter;
 use core::cell::UnsafeCell;
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
@@ -464,41 +463,6 @@ where
         )?;
 
         Some((begin_idx, self.chunk_buffer.drain(..)))
-    }
-}
-
-impl<I, E> NewConcurrentIter for Con1<I, E>
-where
-    I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
-    I::Item: Send,
-    E: Fn(&I::Item) -> I + Send + Sync,
-{
-    fn next_with_thread_idx(&self, thread_idx: usize) -> Option<Self::Item> {
-        Self::next_impl(
-            &self.injector,
-            &*self.extend,
-            &self.locals,
-            &self.stealers,
-            &self.pending,
-            &self.popped,
-            &self.stopped,
-            Some(thread_idx),
-        )
-        .map(|(_, x)| x)
-    }
-
-    fn chunk_puller_with_thread_idx(
-        &self,
-        chunk_size: usize,
-        thread_idx: usize,
-    ) -> Self::ChunkPuller<'_> {
-        Con1ChunkPuller {
-            iter: self,
-            chunk_size,
-            thread_idx: Some(thread_idx),
-            chunk_buffer: Default::default(),
-        }
     }
 }
 

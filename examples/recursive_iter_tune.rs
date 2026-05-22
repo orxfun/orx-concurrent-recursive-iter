@@ -1,7 +1,4 @@
-// cargo run --release --example recursive_iter_tune
-
 use orx_concurrent_iter::ConcurrentIter;
-use orx_concurrent_recursive_iter::NewConcurrentIter;
 use orx_concurrent_recursive_iter::{
     Con2, ConcurrentIterCross, ConcurrentIterCrossSeg, ConcurrentRecursiveIter,
     ConcurrentRecursiveIterShards, Queue,
@@ -386,7 +383,7 @@ fn crossbeam_iter_con2_sum(fs: &FileSystem, work: usize, num_threads: usize) -> 
                 }
 
                 let mut local_sum = 0u64;
-                while let Some(idx) = iter_ref.next_with_thread_idx(thread_idx) {
+                while let Some(idx) = iter_ref.next_by(thread_idx) {
                     local_sum += fs.nodes[idx].compute_score(work);
                 }
                 local_sum

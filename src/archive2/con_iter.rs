@@ -1,7 +1,4 @@
-use crate::{
-    archive2::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue},
-    new_con_iter::NewConcurrentIter,
-};
+use crate::archive2::{chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqQueue, queue::Queue};
 use core::sync::atomic::Ordering;
 use orx_concurrent_iter::ConcurrentIter;
 use orx_concurrent_queue::{ConcurrentQueue, DefaultConPinnedVec};
@@ -366,15 +363,6 @@ where
         let queue = vec.into();
         (queue, extend, exact_len).into()
     }
-}
-
-impl<T, E, P> NewConcurrentIter for ConcurrentRecursiveIter<T, E, P>
-where
-    T: Send,
-    P: ConcurrentPinnedVec<T>,
-    <P as ConcurrentPinnedVec<T>>::P: IntoConcurrentPinnedVec<T, ConPinnedVec = P>,
-    E: Fn(&T, &Queue<T, P>) + Sync,
-{
 }
 
 impl<T, E, P> ConcurrentIter for ConcurrentRecursiveIter<T, E, P>

@@ -1,8 +1,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use orx_concurrent_iter::ChunkPuller;
+use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
     Con1, Con2, ConcurrentRecursiveIter, ConcurrentRecursiveIterCrossbeam,
-    ConcurrentRecursiveIterCrossbeamNoStd, NewConcurrentIter, Queue,
+    ConcurrentRecursiveIterCrossbeamNoStd, Queue,
 };
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
@@ -133,7 +133,7 @@ fn run_concurrent_iter<I>(
     chunk_size: usize,
 ) -> u64
 where
-    I: NewConcurrentIter<Item = usize> + Sync,
+    I: ConcurrentIter<Item = usize>,
 {
     let chunk_size = chunk_size.max(1);
 
@@ -142,12 +142,12 @@ where
         let mut local_sum = 0u64;
         match chunk_size {
             1 => {
-                while let Some(idx) = iter.next_with_thread_idx(thread_idx) {
+                while let Some(idx) = iter.next_by(thread_idx) {
                     local_sum += fs.nodes[idx].compute_score(work);
                 }
             }
             c => {
-                let mut puller = iter.chunk_puller_with_thread_idx(c, thread_idx);
+                let mut puller = iter.chunk_puller_by(c, thread_idx);
                 while let Some(chunk) = puller.pull() {
                     local_sum += chunk
                         .into_iter()

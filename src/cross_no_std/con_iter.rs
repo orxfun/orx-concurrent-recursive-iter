@@ -1,8 +1,5 @@
-use crate::{
-    cross_no_std::{
-        chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqCrossbeamNoStd, queue::Queue,
-    },
-    new_con_iter::NewConcurrentIter,
+use crate::cross_no_std::{
+    chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqCrossbeamNoStd, queue::Queue,
 };
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -135,39 +132,6 @@ where
         }
 
         begin_idx
-    }
-}
-
-impl<I, E> NewConcurrentIter for ConcurrentRecursiveIterCrossbeamNoStd<I, E>
-where
-    I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
-    I::Item: Send,
-    E: Fn(&I::Item) -> I + Send + Sync,
-{
-    fn next_with_thread_idx(&self, thread_idx: usize) -> Option<Self::Item> {
-        Self::next_impl(
-            &self.queue,
-            &*self.extend,
-            &self.pending,
-            &self.popped,
-            &self.stopped,
-            Some(thread_idx),
-        )
-        .map(|(_, x)| x)
-    }
-
-    fn chunk_puller_with_thread_idx(
-        &self,
-        chunk_size: usize,
-        thread_idx: usize,
-    ) -> Self::ChunkPuller<'_> {
-        DynChunkPuller {
-            iter: self,
-            chunk_size,
-            thread_idx: Some(thread_idx),
-            chunk_buffer: Default::default(),
-        }
     }
 }
 
