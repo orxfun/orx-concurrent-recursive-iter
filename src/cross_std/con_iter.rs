@@ -12,7 +12,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 pub struct ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -29,7 +28,6 @@ where
 impl<I, E> ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -155,6 +153,54 @@ where
         }
     }
 
+    fn enqueue_children(
+        injector: &Queue<I::Item>,
+        owner_local: Option<&Worker<I::Item>>,
+        pending: &AtomicUsize,
+        stopped: &AtomicBool,
+        extend: &E,
+        item: &I::Item,
+    ) {
+        if stopped.load(Ordering::Acquire) {
+            return;
+        }
+
+        let children = extend(item).into_iter();
+        let (lower, upper) = children.size_hint();
+
+        match upper {
+            Some(exact) if exact == lower && exact > 0 => {
+                pending.fetch_add(exact, Ordering::Relaxed);
+                match owner_local {
+                    Some(local) => {
+                        for child in children {
+                            local.push(child);
+                        }
+                    }
+                    None => {
+                        for child in children {
+                            injector.push(child);
+                        }
+                    }
+                }
+            }
+            _ => match owner_local {
+                Some(local) => {
+                    for child in children {
+                        pending.fetch_add(1, Ordering::Relaxed);
+                        local.push(child);
+                    }
+                }
+                None => {
+                    for child in children {
+                        pending.fetch_add(1, Ordering::Relaxed);
+                        injector.push(child);
+                    }
+                }
+            },
+        }
+    }
+
     pub(super) fn next_impl(
         injector: &Queue<I::Item>,
         extend: &E,
@@ -187,22 +233,7 @@ where
 
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
-        let children = extend(&item).into_iter();
-        if children.len() > 0 && !stopped.load(Ordering::Acquire) {
-            pending.fetch_add(children.len(), Ordering::Relaxed);
-            match owner_local {
-                Some(local) => {
-                    for child in children {
-                        local.push(child);
-                    }
-                }
-                None => {
-                    for child in children {
-                        injector.push(child);
-                    }
-                }
-            }
-        }
+        Self::enqueue_children(injector, owner_local, pending, stopped, extend, &item);
 
         Self::decrement_pending(pending);
         Some((idx, item))
@@ -260,22 +291,7 @@ where
             let idx = popped.fetch_add(1, Ordering::Relaxed);
             begin_idx.get_or_insert(idx);
 
-            let children = extend(&item).into_iter();
-            if children.len() > 0 && !stopped.load(Ordering::Acquire) {
-                pending.fetch_add(children.len(), Ordering::Relaxed);
-                match owner_local {
-                    Some(local) => {
-                        for child in children {
-                            local.push(child);
-                        }
-                    }
-                    None => {
-                        for child in children {
-                            injector.push(child);
-                        }
-                    }
-                }
-            }
+            Self::enqueue_children(injector, owner_local, pending, stopped, extend, &item);
 
             Self::decrement_pending(pending);
             chunk.push(item);
@@ -288,7 +304,6 @@ where
 impl<I, E> ConcurrentIter for ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {

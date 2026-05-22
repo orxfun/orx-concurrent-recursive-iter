@@ -298,7 +298,8 @@ fn assert_eq_with_idx(roots: &Roots, bag: ConcurrentBag<(usize, &Node)>) {
 #[test_matrix([0, 1, N_ROOT], [1, 2, 4])]
 fn next(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 424242);
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
+    let iter =
+        ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -375,7 +376,8 @@ fn item_puller(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn item_puller_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
+    let iter =
+        ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -400,7 +402,8 @@ fn item_puller_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn chunk_puller(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
+    let iter =
+        ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -484,7 +487,8 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
+    let iter =
+        ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -508,7 +512,8 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn skip_to_end(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
+    let iter =
+        ConcurrentRecursiveIterCrossbeamStd::new(roots.as_slice().iter(), extend, None, None);
 
     let until = n / 2;
 

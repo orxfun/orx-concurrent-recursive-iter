@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 pub struct DynSeqCrossbeam<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -25,7 +24,6 @@ where
 impl<I, E> Iterator for DynSeqCrossbeam<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -56,7 +54,6 @@ where
 impl<I, E> FusedIterator for DynSeqCrossbeam<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {

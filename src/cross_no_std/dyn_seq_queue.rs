@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 pub struct DynSeqCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -20,7 +20,7 @@ where
 impl<I, E> Iterator for DynSeqCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -49,7 +49,7 @@ where
 impl<I, E> FusedIterator for DynSeqCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {

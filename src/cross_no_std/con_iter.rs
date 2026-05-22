@@ -10,7 +10,7 @@ use orx_concurrent_iter::ConcurrentIter;
 pub struct ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -25,7 +25,7 @@ where
 impl<I, E> ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -57,6 +57,36 @@ where
         let _ = pending.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |x| x.checked_sub(1));
     }
 
+    fn enqueue_children(
+        queue: &Queue<I::Item>,
+        pending: &AtomicUsize,
+        stopped: &AtomicBool,
+        extend: &E,
+        item: &I::Item,
+    ) {
+        if stopped.load(Ordering::Acquire) {
+            return;
+        }
+
+        let children = extend(item).into_iter();
+        let (lower, upper) = children.size_hint();
+
+        match upper {
+            Some(exact) if exact == lower && exact > 0 => {
+                pending.fetch_add(exact, Ordering::Relaxed);
+                for child in children {
+                    queue.push(child);
+                }
+            }
+            _ => {
+                for child in children {
+                    pending.fetch_add(1, Ordering::Relaxed);
+                    queue.push(child);
+                }
+            }
+        }
+    }
+
     pub(super) fn next_impl(
         queue: &Queue<I::Item>,
         extend: &E,
@@ -72,13 +102,7 @@ where
         let item = queue.pop()?;
         let idx = popped.fetch_add(1, Ordering::Relaxed);
 
-        let children = extend(&item).into_iter();
-        if children.len() > 0 && !stopped.load(Ordering::Acquire) {
-            pending.fetch_add(children.len(), Ordering::Relaxed);
-            for child in children {
-                queue.push(child);
-            }
-        }
+        Self::enqueue_children(queue, pending, stopped, extend, &item);
 
         Self::decrement_pending(pending);
         Some((idx, item))
@@ -119,13 +143,7 @@ where
             let idx = popped.fetch_add(1, Ordering::Relaxed);
             begin_idx.get_or_insert(idx);
 
-            let children = extend(&item).into_iter();
-            if children.len() > 0 && !stopped.load(Ordering::Acquire) {
-                pending.fetch_add(children.len(), Ordering::Relaxed);
-                for child in children {
-                    queue.push(child);
-                }
-            }
+            Self::enqueue_children(queue, pending, stopped, extend, &item);
 
             Self::decrement_pending(pending);
             chunk.push(item);
@@ -138,7 +156,7 @@ where
 impl<I, E> ConcurrentIter for ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator,
+    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
