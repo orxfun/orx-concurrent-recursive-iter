@@ -5,10 +5,6 @@
 /// for each yielded element `e`, `extend(&e)` is called and produced children are pushed
 /// back into the shared work queue before the iteration proceeds.
 ///
-/// This alias resolves to:
-/// * [`crate::cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd`] when `std` is disabled,
-/// * [`crate::cross_std::ConcurrentRecursiveIterCrossbeamStd`] when `std` is enabled.
-///
 /// # Example
 ///
 /// ```
@@ -31,10 +27,6 @@ pub type ConcurrentRecursiveIter<I, E> =
 /// The iterator starts with initial elements and can grow recursively while iterating:
 /// for each yielded element `e`, `extend(&e)` is called and produced children are pushed
 /// back into the shared work queue before the iteration proceeds.
-///
-/// This alias resolves to:
-/// * [`crate::cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd`] when `std` is disabled,
-/// * [`crate::cross_std::ConcurrentRecursiveIterCrossbeamStd`] when `std` is enabled.
 ///
 /// # Example
 ///
