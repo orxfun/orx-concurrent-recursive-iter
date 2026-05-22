@@ -419,10 +419,11 @@ where
                 (remaining, Some(remaining))
             }
             None => {
-                if self.pending.load(Ordering::Acquire) == 0 {
+                let pending = self.pending.load(Ordering::Acquire);
+                if pending == 0 {
                     (0, Some(0))
                 } else {
-                    (0, None)
+                    (pending, None)
                 }
             }
         }
