@@ -29,8 +29,9 @@ mod concurrent_iter_cross;
 mod concurrent_iter_cross_seg;
 mod concurrent_recursive_iter_shards;
 mod concurrent_recursive_iter_shards2;
-mod new_con_iter;
+mod cross_nostd;
 mod cross_std;
+mod new_con_iter;
 // mod dyn_seq_queue;
 // mod queue;
 
@@ -44,5 +45,6 @@ pub use concurrent_iter_cross::ConcurrentIterCross;
 pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use concurrent_recursive_iter_shards::ConcurrentRecursiveIterShards;
 pub use concurrent_recursive_iter_shards2::ConcurrentRecursiveIterShards2;
+pub use cross_nostd::ConcurrentRecursiveIterCrossbeamNoStd;
 pub use cross_std::ConcurrentRecursiveIterCrossbeam;
 pub use new_con_iter::NewConcurrentIter;
