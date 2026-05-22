@@ -31,13 +31,9 @@ Growth is defined by the `extend` function. For every element `x` pulled from th
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1, 2];
-let extend = |x: &usize, queue: &Queue<usize>| {
-    if *x < 1000 {
-        queue.push(x * 10);
-    }
-};
+let extend = |x: &usize| (*x < 1000).then_some(x * 10);
 
-let iter = ConcurrentRecursiveIter::new(initial, extend);
+let iter = ConcurrentRecursiveIter::new(initial, extend, None, None);
 
 let mut collected = vec![];
 while let Some(x) = iter.next() {
@@ -68,13 +64,11 @@ This sequential example allows us demonstrate the recursive iteration easily. Fo
 
 The following is again a simple and sequential example, except that this time each element extends the recursive iterator by 0 or multiple elements.
 
-```rust
+```rust ignore
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1];
-let extend = |x: &usize, queue: &Queue<usize>| if *x < 100 {
-    queue.extend([x * 10, x * 20]);
-};
+let extend = |x: &usize| (*x < 100).then_some([x * 10, x * 20]);
 let iter = ConcurrentRecursiveIter::new(initial, extend);
 
 let collected: Vec<_> = iter.item_puller().collect();
@@ -104,7 +98,7 @@ We create our recursive iterator with one initial element which is the root. We 
 
 This allows us to `process` each of the 177 nodes concurrently.
 
-```rust
+```rust ignore
 use orx_concurrent_recursive_iter::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;

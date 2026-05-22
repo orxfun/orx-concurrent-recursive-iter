@@ -29,3 +29,32 @@ pub type ConcurrentRecursiveIter<I, E> = cross_no_std::ConcurrentRecursiveIterCr
 
 #[cfg(feature = "std")]
 pub type ConcurrentRecursiveIter<I, E> = cross_std::ConcurrentRecursiveIterCrossbeamStd<I, E>;
+
+pub use orx_concurrent_iter::*;
+
+#[cfg(test)]
+mod abc {
+    use crate::*;
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn def() {
+        let initial = [1, 2];
+        let extend = |x: &usize| (*x < 1000).then_some(x * 10);
+        let extend = |x: &usize| {
+            let x = (*x < 100).then_some([x * 10, x * 20]);
+            let y = x.into_iter().map(|x| x.into_iter()).flatten();
+            y
+        };
+
+        let iter = ConcurrentRecursiveIter::new(initial, extend, None, None);
+
+        let mut collected = vec![];
+        while let Some(x) = iter.next() {
+            collected.push(x);
+        }
+
+        assert_eq!(collected, vec![1, 2, 10, 20, 100, 200, 1000, 2000]);
+    }
+}
