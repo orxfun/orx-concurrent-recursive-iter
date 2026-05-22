@@ -200,10 +200,11 @@ fn con2_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) 
 }
 
 fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeam::new_exact(
+    let iter = ConcurrentRecursiveIterCrossbeam::new(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.iter().copied(),
-        fs.nodes.len(),
+        Some(fs.nodes.len()),
+        Some(pool.current_num_threads()),
     );
 
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)

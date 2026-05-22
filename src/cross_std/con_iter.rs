@@ -33,19 +33,20 @@ where
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
-    fn with_locals_count(
+    /// Creates a new crossbeam-backed recursive concurrent iterator.
+    pub fn new(
         initial_elements: impl IntoIterator<Item = I::Item>,
         extend: E,
-        num_locals: usize,
+        exact_len: Option<usize>,
+        num_locals: Option<usize>,
     ) -> Self {
         let injector = Arc::new(Queue::new());
-        let mut pending = 0usize;
         for element in initial_elements {
             injector.push(element);
-            pending += 1;
         }
+        let pending = injector.len();
 
-        let locals_count = num_locals.max(1);
+        let locals_count = num_locals.unwrap_or(Self::default_num_locals()).max(1);
         let locals_vec: Vec<LocalWorker<I::Item>> =
             (0..locals_count).map(|_| LocalWorker::new_fifo()).collect();
 
@@ -60,33 +61,8 @@ where
             pending: Arc::new(AtomicUsize::new(pending)),
             popped: Arc::new(AtomicUsize::new(0)),
             stopped: Arc::new(AtomicBool::new(false)),
-            exact_len: None,
+            exact_len,
         }
-    }
-
-    /// Creates a new crossbeam-backed recursive concurrent iterator.
-    pub fn new(initial_elements: impl IntoIterator<Item = I::Item>, extend: E) -> Self {
-        Self::with_locals_count(initial_elements, extend, Self::default_num_locals())
-    }
-
-    /// Creates a new iterator with explicit local worker shard count.
-    pub fn new_with_locals(
-        initial_elements: impl IntoIterator<Item = I::Item>,
-        extend: E,
-        num_locals: usize,
-    ) -> Self {
-        Self::with_locals_count(initial_elements, extend, num_locals)
-    }
-
-    /// Creates a new iterator with known exact output length.
-    pub fn new_exact(
-        initial_elements: impl IntoIterator<Item = I::Item>,
-        extend: E,
-        exact_len: usize,
-    ) -> Self {
-        let mut iter = Self::new(initial_elements, extend);
-        iter.exact_len = Some(exact_len);
-        iter
     }
 
     pub(super) fn decrement_pending(pending: &AtomicUsize) {

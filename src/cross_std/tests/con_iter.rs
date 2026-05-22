@@ -2,10 +2,8 @@ use crate::cross_std::{
     con_iter::ConcurrentRecursiveIterCrossbeam,
     tests::node::{Node, Roots},
 };
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use orx_concurrent_bag::ConcurrentBag;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
@@ -37,7 +35,7 @@ fn basic_iter() {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend, None, None);
 
     assert_eq!(iter.next(), Some(1.to_string()));
     assert_eq!(iter.next(), Some(2.to_string()));
@@ -66,7 +64,7 @@ fn basic_iter_with_idx() {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend, None, Some(3));
 
     assert_eq!(iter.next_with_idx(), Some((0, 1.to_string())));
     assert_eq!(iter.next_with_idx(), Some((1, 2.to_string())));
@@ -95,7 +93,7 @@ fn size_hint() {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend, None, Some(4));
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -150,7 +148,7 @@ fn size_hint_exact() {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new_exact(vec(3), extend, 14);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend, Some(14), None);
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (14, Some(14)));
@@ -205,7 +203,7 @@ fn size_hint_skip_to_end() {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(3), extend, None, None);
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -231,7 +229,7 @@ fn empty(nt: usize) {
         let i: usize = s.parse().unwrap();
         (0..i).map(|x| x.to_string())
     };
-    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(0), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(vec(0), extend, None, Some(8));
 
     std::thread::scope(|s| {
         for _ in 0..nt {
@@ -300,7 +298,7 @@ fn assert_eq_with_idx(roots: &Roots, bag: ConcurrentBag<(usize, &Node)>) {
 #[test_matrix([0, 1, N_ROOT], [1, 2, 4])]
 fn next(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 424242);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -325,7 +323,8 @@ fn next(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn next_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter =
+        ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, Some(nt));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -350,7 +349,8 @@ fn next_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn item_puller(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter =
+        ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, Some(nt));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -375,7 +375,7 @@ fn item_puller(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn item_puller_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -400,7 +400,7 @@ fn item_puller_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn chunk_puller(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -429,7 +429,8 @@ fn chunk_puller(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn chunk_puller_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter =
+        ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, Some(nt));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -458,7 +459,8 @@ fn chunk_puller_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn flattened_chunk_puller(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter =
+        ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, Some(nt));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -482,7 +484,7 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, None);
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -506,7 +508,7 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4])]
 fn skip_to_end(n: usize, nt: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, None);
 
     let until = n / 2;
 
@@ -567,7 +569,8 @@ fn skip_to_end(n: usize, nt: usize) {
 #[test_matrix([0, 1, N], [1, 2, 4], [0, N / 2, N])]
 fn into_seq_iter(n: usize, nt: usize, until: usize) {
     let roots = Roots::new(n, N_NODE, 3234);
-    let iter = ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend);
+    let iter =
+        ConcurrentRecursiveIterCrossbeam::new(roots.as_slice().iter(), extend, None, Some(nt));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
