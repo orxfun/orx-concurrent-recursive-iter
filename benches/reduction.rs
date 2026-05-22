@@ -171,6 +171,19 @@ fn orx(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u6
     run_concurrent_iter(&iter, fs, work, pool, chunk_size)
 }
 
+#[cfg(feature = "experimental")]
+fn orx_queue(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    use orx_concurrent_recursive_iter::{ConcurrentRecursiveIterQueue, Queue};
+
+    let iter = ConcurrentRecursiveIterQueue::new_exact(
+        fs.roots.iter().copied(),
+        |idx: &usize, q: &Queue<'_, _>| q.extend(fs.nodes[*idx].children.iter().copied()),
+        fs.nodes.len(),
+    );
+
+    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
+}
+
 #[derive(Clone)]
 struct Input {
     num_threads: usize,
@@ -211,6 +224,10 @@ enum Method {
     Rayon,
     Orx,
     OrxChunk,
+    #[cfg(feature = "experimental")]
+    OrxQueue,
+    #[cfg(feature = "experimental")]
+    OrxQueueChunk,
 }
 
 impl Factors for Method {
@@ -223,8 +240,12 @@ impl Factors for Method {
             match self {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
-                Self::Orx => "cross-std",
-                Self::OrxChunk => "cross-std-c64",
+                Self::Orx => "orx",
+                Self::OrxChunk => "orx-c64",
+                #[cfg(feature = "experimental")]
+                Self::OrxQueue => "orx-queue",
+                #[cfg(feature = "experimental")]
+                Self::OrxQueueChunk => "orx-queue-c64",
             }
             .to_string(),
         ]
@@ -235,8 +256,12 @@ impl Factors for Method {
             match self {
                 Self::Seq => "s",
                 Self::Rayon => "r",
-                Self::Orx => "cs",
-                Self::OrxChunk => "cs-c64",
+                Self::Orx => "orx",
+                Self::OrxChunk => "orx-c64",
+                #[cfg(feature = "experimental")]
+                Self::OrxQueue => "orx-q",
+                #[cfg(feature = "experimental")]
+                Self::OrxQueueChunk => "orx-q-c64",
             }
             .to_string(),
         ]
@@ -277,6 +302,10 @@ impl Experiment for Exp {
             Method::Rayon => rayon_sum(fs, input_variant.work, pool),
             Method::Orx => orx(fs, input_variant.work, pool, 1),
             Method::OrxChunk => orx(fs, input_variant.work, pool, CHUNK_SIZE),
+            #[cfg(feature = "experimental")]
+            Method::OrxQueue => orx(fs, input_variant.work, pool, 1),
+            #[cfg(feature = "experimental")]
+            Method::OrxQueueChunk => orx(fs, input_variant.work, pool, CHUNK_SIZE),
         }
     }
 
