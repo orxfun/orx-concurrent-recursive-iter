@@ -1,16 +1,13 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
-use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIterCrossbeamNoStd, ConcurrentRecursiveIterCrossbeamStd,
-};
+use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
 use orx_criterion::{Experiment, Factors};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// const THREADS: [usize; 4] = [8, 16, 24, 32];
-const THREADS: [usize; 2] = [16, 32];
+const THREADS: [usize; 4] = [8, 16, 24, 32];
 const CHUNK_SIZE: usize = 64;
 
 #[derive(Clone)]
@@ -162,19 +159,8 @@ where
     .sum()
 }
 
-fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(
-        fs.roots.iter().copied(),
-        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
-        Some(fs.nodes.len()),
-        Some(pool.current_num_threads()),
-    );
-
-    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
-}
-
-fn cross_no_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeamNoStd::new(
+fn orx(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    let iter = ConcurrentRecursiveIter::new(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.iter().copied(),
         Some(fs.nodes.len()),
@@ -222,10 +208,8 @@ impl Factors for Input {
 enum Method {
     Seq,
     Rayon,
-    CrossStd,
-    CrossStdChunk,
-    CrossNoStd,
-    CrossNoStdChunk,
+    Orx,
+    OrxChunk,
 }
 
 impl Factors for Method {
@@ -238,10 +222,8 @@ impl Factors for Method {
             match self {
                 Self::Seq => "seq",
                 Self::Rayon => "rayon",
-                Self::CrossStd => "cross-std",
-                Self::CrossStdChunk => "cross-std-c64",
-                Self::CrossNoStd => "cross-no-std",
-                Self::CrossNoStdChunk => "cross-no-std-c64",
+                Self::Orx => "cross-std",
+                Self::OrxChunk => "cross-std-c64",
             }
             .to_string(),
         ]
@@ -252,10 +234,8 @@ impl Factors for Method {
             match self {
                 Self::Seq => "s",
                 Self::Rayon => "r",
-                Self::CrossStd => "cs",
-                Self::CrossStdChunk => "cs-c64",
-                Self::CrossNoStd => "cns",
-                Self::CrossNoStdChunk => "cns-c64",
+                Self::Orx => "cs",
+                Self::OrxChunk => "cs-c64",
             }
             .to_string(),
         ]
@@ -294,10 +274,8 @@ impl Experiment for Exp {
         match alg_variant {
             Method::Seq => seq_sum(fs, input_variant.work),
             Method::Rayon => rayon_sum(fs, input_variant.work, pool),
-            Method::CrossStd => cross_std_sum(fs, input_variant.work, pool, 1),
-            Method::CrossStdChunk => cross_std_sum(fs, input_variant.work, pool, CHUNK_SIZE),
-            Method::CrossNoStd => cross_no_std_sum(fs, input_variant.work, pool, 1),
-            Method::CrossNoStdChunk => cross_no_std_sum(fs, input_variant.work, pool, CHUNK_SIZE),
+            Method::Orx => orx(fs, input_variant.work, pool, 1),
+            Method::OrxChunk => orx(fs, input_variant.work, pool, CHUNK_SIZE),
         }
     }
 
@@ -333,10 +311,8 @@ fn run(c: &mut Criterion) {
     let variants = vec![
         // Method::Seq,
         Method::Rayon,
-        Method::CrossStd,
-        Method::CrossStdChunk,
-        Method::CrossNoStd,
-        Method::CrossNoStdChunk,
+        Method::Orx,
+        Method::OrxChunk,
     ];
 
     Exp.bench(c, "ben", &treatments, &variants);

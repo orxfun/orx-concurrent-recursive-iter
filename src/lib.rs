@@ -19,14 +19,13 @@ extern crate std;
 
 #[cfg(not(feature = "std"))]
 mod cross_no_std;
-
 #[cfg(feature = "std")]
 mod cross_std;
 
 // mod orx_queue;
 
 #[cfg(not(feature = "std"))]
-pub use cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd;
+pub type ConcurrentRecursiveIter<I, E> = cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd<I, E>;
 
 #[cfg(feature = "std")]
-pub use cross_std::ConcurrentRecursiveIterCrossbeamStd;
+pub type ConcurrentRecursiveIter<I, E> = cross_std::ConcurrentRecursiveIterCrossbeamStd<I, E>;

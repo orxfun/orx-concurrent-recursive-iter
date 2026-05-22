@@ -1,8 +1,6 @@
 use clap::Parser;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
-use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIterCrossbeamNoStd, ConcurrentRecursiveIterCrossbeamStd,
-};
+use orx_concurrent_recursive_iter::ConcurrentRecursiveIter;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::{ThreadPool, ThreadPoolBuilder, scope};
@@ -177,19 +175,8 @@ where
     .sum()
 }
 
-fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeamStd::new(
-        fs.roots.iter().copied(),
-        |idx: &usize| fs.nodes[*idx].children.iter().copied(),
-        Some(fs.nodes.len()),
-        Some(pool.current_num_threads()),
-    );
-
-    run_concurrent_iter(&iter, fs, work, pool, chunk_size)
-}
-
-fn cross_no_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeamNoStd::new(
+fn orx(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
+    let iter = ConcurrentRecursiveIter::new(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.iter().copied(),
         Some(fs.nodes.len()),
@@ -203,21 +190,19 @@ fn cross_no_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size:
 enum Method {
     Seq,
     Rayon,
-    CrossStd,
-    CrossNoStd,
+    Orx,
 }
 
 impl Method {
-    fn all() -> [Self; 4] {
-        [Self::Seq, Self::Rayon, Self::CrossStd, Self::CrossNoStd]
+    fn all() -> [Self; 3] {
+        [Self::Seq, Self::Rayon, Self::Orx]
     }
 
     fn label(self) -> &'static str {
         match self {
             Self::Seq => "seq",
             Self::Rayon => "rayon",
-            Self::CrossStd => "cross-std",
-            Self::CrossNoStd => "cross-no-std",
+            Self::Orx => "orx",
         }
     }
 }
@@ -237,8 +222,7 @@ fn run(
         let output = match method {
             Method::Seq => seq_sum(&fs, work),
             Method::Rayon => rayon_sum(&fs, work, &pool),
-            Method::CrossStd => cross_std_sum(fs, work, pool, chunk_size),
-            Method::CrossNoStd => cross_no_std_sum(fs, work, pool, chunk_size),
+            Method::Orx => orx(fs, work, pool, chunk_size),
         };
         let elapsed = started.elapsed();
 
@@ -268,7 +252,7 @@ fn main() {
 
     // let methods = vec![Method::Seq, Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
     // let methods = vec![Method::Rayon, Method::Con1, Method::Con2, Method::RecIter];
-    let methods = vec![Method::Rayon, Method::CrossStd, Method::CrossNoStd];
+    let methods = vec![Method::Rayon, Method::Orx];
 
     for _ in 0..args.warm_up {
         _ = run(&methods, &fs, work, &pool, chunk_size, expected);
