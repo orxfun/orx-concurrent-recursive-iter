@@ -64,12 +64,12 @@ This sequential example allows us demonstrate the recursive iteration easily. Fo
 
 The following is again a simple and sequential example, except that this time each element extends the recursive iterator by 0 or multiple elements.
 
-```rust ignore
+```rust
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1];
-let extend = |x: &usize| (*x < 100).then_some([x * 10, x * 20]);
-let iter = ConcurrentRecursiveIter::new(initial, extend);
+let extend = |x: &usize| (*x < 100).then_some([x * 10, x * 20]).into_iter().flatten();
+let iter = ConcurrentRecursiveIter::new(initial, extend, None, None);
 
 let collected: Vec<_> = iter.item_puller().collect();
 assert_eq!(collected, vec![1, 10, 20, 100, 200, 200, 400]);
@@ -98,7 +98,7 @@ We create our recursive iterator with one initial element which is the root. We 
 
 This allows us to `process` each of the 177 nodes concurrently.
 
-```rust ignore
+```rust
 use orx_concurrent_recursive_iter::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -127,16 +127,11 @@ fn process(node_value: u64) {
     std::thread::sleep(std::time::Duration::from_millis(node_value));
 }
 
-// this defines how the iterator must extend:
-// each node drawn from the iterator adds its children to the end of the iterator
-fn extend<'a, 'b>(node: &'a &'b Node, queue: &Queue<&'b Node>) {
-    queue.extend(&node.children);
-}
-
 // initiate iter with a single element, `root`
 // however, the iterator will `extend` on the fly as we keep drawing its elements
 let root = Node::new(&mut ChaCha8Rng::seed_from_u64(42), 70);
-let iter = ConcurrentRecursiveIter::new([&root], extend);
+let iter =
+    ConcurrentRecursiveIter::new([&root], |node: &&Node| node.children.iter(), None, None);
 
 let num_threads = 8;
 let num_spawned = AtomicUsize::new(0);
