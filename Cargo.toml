@@ -37,5 +37,5 @@ std = ["dep:crossbeam-deque"]
 # benchmarks
 
 [[bench]]
-name = "ben"
+name = "reduction"
 harness = false
