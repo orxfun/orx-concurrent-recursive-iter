@@ -32,6 +32,7 @@ mod concurrent_recursive_iter_shards2;
 mod cross_no_std;
 mod cross_std;
 mod new_con_iter;
+mod orx_queue;
 // mod dyn_seq_queue;
 // mod queue;
 
