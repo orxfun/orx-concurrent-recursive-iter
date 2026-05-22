@@ -10,17 +10,23 @@
     clippy::missing_panics_doc,
     clippy::todo
 )]
-// #![no_std]
+#![no_std]
 
 extern crate alloc;
 
-// #[cfg(test)]
-// extern crate std;
+#[cfg(any(test, feature = "std"))]
+extern crate std;
 
+#[cfg(not(feature = "std"))]
 mod cross_no_std;
-mod cross_std;
-mod orx_queue;
 
-// re-import
+#[cfg(feature = "std")]
+mod cross_std;
+
+// mod orx_queue;
+
+#[cfg(not(feature = "std"))]
 pub use cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd;
-pub use cross_std::ConcurrentRecursiveIterCrossbeam;
+
+#[cfg(feature = "std")]
+pub use cross_std::ConcurrentRecursiveIterCrossbeamStd;

@@ -1,4 +1,5 @@
-use crate::cross_std::{chunk::DynChunk, con_iter::ConcurrentRecursiveIterCrossbeam};
+use crate::cross_std::{chunk::DynChunk, con_iter::ConcurrentRecursiveIterCrossbeamStd};
+use alloc::vec::Vec;
 use orx_concurrent_iter::ChunkPuller;
 
 pub struct DynChunkPuller<'a, I, E>
@@ -8,7 +9,7 @@ where
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
-    pub(super) iter: &'a ConcurrentRecursiveIterCrossbeam<I, E>,
+    pub(super) iter: &'a ConcurrentRecursiveIterCrossbeamStd<I, E>,
     pub(super) chunk_size: usize,
     pub(super) thread_idx: Option<usize>,
     pub(super) chunk_buffer: Vec<I::Item>,
@@ -33,7 +34,7 @@ where
     }
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
-        ConcurrentRecursiveIterCrossbeam::pull_batch_into_impl(
+        ConcurrentRecursiveIterCrossbeamStd::pull_batch_into_impl(
             &self.iter.injector,
             &*self.iter.extend,
             &self.iter.locals,
@@ -50,7 +51,7 @@ where
     }
 
     fn pull_with_idx(&mut self) -> Option<(usize, Self::Chunk<'_>)> {
-        let begin_idx = ConcurrentRecursiveIterCrossbeam::pull_batch_into_impl(
+        let begin_idx = ConcurrentRecursiveIterCrossbeamStd::pull_batch_into_impl(
             &self.iter.injector,
             &*self.iter.extend,
             &self.iter.locals,

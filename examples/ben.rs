@@ -1,7 +1,7 @@
 use clap::Parser;
 use orx_concurrent_iter::{ChunkPuller, ConcurrentIter};
 use orx_concurrent_recursive_iter::{
-    ConcurrentRecursiveIterCrossbeam, ConcurrentRecursiveIterCrossbeamNoStd,
+    ConcurrentRecursiveIterCrossbeamNoStd, ConcurrentRecursiveIterCrossbeamStd,
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -178,7 +178,7 @@ where
 }
 
 fn cross_std_sum(fs: &FileSystem, work: usize, pool: &ThreadPool, chunk_size: usize) -> u64 {
-    let iter = ConcurrentRecursiveIterCrossbeam::new(
+    let iter = ConcurrentRecursiveIterCrossbeamStd::new(
         fs.roots.iter().copied(),
         |idx: &usize| fs.nodes[*idx].children.iter().copied(),
         Some(fs.nodes.len()),

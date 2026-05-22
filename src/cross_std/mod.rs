@@ -8,4 +8,4 @@ mod dyn_seq_queue;
 mod local_worker;
 mod queue;
 
-pub use con_iter::ConcurrentRecursiveIterCrossbeam;
+pub use con_iter::ConcurrentRecursiveIterCrossbeamStd;

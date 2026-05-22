@@ -1,5 +1,6 @@
 use crate::cross_std::local_worker::LocalWorker;
 use crate::cross_std::queue::Queue;
+use alloc::vec::Vec;
 use core::iter::FusedIterator;
 use crossbeam_deque::Stealer;
 use std::sync::Arc;
@@ -31,7 +32,7 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        super::con_iter::ConcurrentRecursiveIterCrossbeam::next_impl(
+        super::con_iter::ConcurrentRecursiveIterCrossbeamStd::next_impl(
             &self.injector,
             &*self.extend,
             &self.locals,

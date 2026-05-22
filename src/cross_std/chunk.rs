@@ -1,1 +1,3 @@
-pub type DynChunk<'a, T> = std::vec::Drain<'a, T>;
+use alloc::vec::Drain;
+
+pub type DynChunk<'a, T> = Drain<'a, T>;

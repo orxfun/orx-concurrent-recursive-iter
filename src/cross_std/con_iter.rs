@@ -2,13 +2,14 @@ use crate::cross_std::queue::Queue;
 use crate::cross_std::{
     chunk_puller::DynChunkPuller, dyn_seq_queue::DynSeqCrossbeam, local_worker::LocalWorker,
 };
+use alloc::vec::Vec;
 use crossbeam_deque::{Steal, Stealer, Worker};
 use orx_concurrent_iter::ConcurrentIter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Recursive concurrent iterator backed by crossbeam injector + work stealing.
-pub struct ConcurrentRecursiveIterCrossbeam<I, E>
+pub struct ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
     I::IntoIter: ExactSizeIterator,
@@ -25,7 +26,7 @@ where
     exact_len: Option<usize>,
 }
 
-impl<I, E> ConcurrentRecursiveIterCrossbeam<I, E>
+impl<I, E> ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
     I::IntoIter: ExactSizeIterator,
@@ -284,7 +285,7 @@ where
     }
 }
 
-impl<I, E> ConcurrentIter for ConcurrentRecursiveIterCrossbeam<I, E>
+impl<I, E> ConcurrentIter for ConcurrentRecursiveIterCrossbeamStd<I, E>
 where
     I: IntoIterator,
     I::IntoIter: ExactSizeIterator,
