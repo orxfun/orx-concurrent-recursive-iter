@@ -6,20 +6,28 @@
 
 A concurrent iterator ([ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html)) that can be extended recursively by each of its items.
 
-> This is a **no-std** crate.
+> This crate is **no-std compatible** and uses a feature-selected backend.
+>
+> * Default (`std`) backend: crossbeam-deque work stealing.
+> * `no_std` backend: crossbeam-queue `SegQueue`.
 
 ## Concurrent Recursive Iter
 
-[`ConcurrentRecursiveIter`](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_recursive_iter/struct.ConcurrentRecursiveIter.html) is a [ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html) implementation which
+[`ConcurrentRecursiveIter`](https://docs.rs/orx-concurrent-recursive-iter/latest/orx_concurrent_recursive_iter/type.ConcurrentRecursiveIter.html) is a [ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html) implementation which
 
 * naturally shrinks as we iterate,
 * but can also grow as it allows to add new items to the iterator, during iteration.
 
-Assume the item type of the iterator is `T`. Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I` where `I: IntoIterator<Item = T>` with a known length.
+Assume the item type of the iterator is `T`. Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I` where `I: IntoIterator<Item = T>`.
+
+When the returned iterator has an exact size hint, the implementation uses this information as a fast path for pending-item accounting.
 
 In other words, for each element `e` pulled from the iterator, the iterator internally calls `extend(&e)` before returning it to the caller. All elements included in the iterator that `extend` returned are added to the end of the concurrent iterator, to be pulled later on.
 
-> The recursive concurrent iterator internally uses a [`ConcurrentQueue`](https://docs.rs/orx-concurrent-queue/latest/orx_concurrent_queue/struct.ConcurrentQueue.html) which allows for both concurrent push / extend and pop / pull operations.
+> Backend details:
+>
+> * `std` feature (default): crossbeam-deque injector + worker-stealer work stealing.
+> * without `std`: crossbeam-queue `SegQueue`.
 
 ### A simple example, extending by 0 or 1 elements
 
@@ -156,6 +164,17 @@ std::thread::scope(|s| {
 });
 
 assert_eq!(num_processed_nodes.into_inner(), 177);
+```
+
+## Features
+
+* `std` (default): enables the `std` backend built on `crossbeam-deque`.
+* `experimental`: enables queue-based experimental APIs such as `ConcurrentRecursiveIterQueue` and `Queue`.
+
+Build without default features to use the no-std backend:
+
+```bash
+cargo build --no-default-features
 ```
 
 ## Contributing
