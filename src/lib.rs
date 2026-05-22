@@ -24,7 +24,6 @@ extern crate alloc;
 // mod con_iter;
 mod archive2;
 mod concurrent_iter_cross;
-mod concurrent_iter_cross_seg;
 mod cross_no_std;
 mod cross_std;
 mod orx_queue;
@@ -36,6 +35,5 @@ pub use orx_concurrent_iter::*;
 
 pub use archive2::{ConcurrentRecursiveIter, Queue};
 pub use concurrent_iter_cross::ConcurrentIterCross;
-pub use concurrent_iter_cross_seg::ConcurrentIterCrossSeg;
 pub use cross_no_std::ConcurrentRecursiveIterCrossbeamNoStd;
 pub use cross_std::ConcurrentRecursiveIterCrossbeam;
