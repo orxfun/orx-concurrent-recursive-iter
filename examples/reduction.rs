@@ -237,8 +237,8 @@ fn run(
     for method in methods {
         let started = Instant::now();
         let output = match method {
-            Method::Seq => seq_sum(&fs, work),
-            Method::Rayon => rayon_sum(&fs, work, &pool),
+            Method::Seq => seq_sum(fs, work),
+            Method::Rayon => rayon_sum(fs, work, pool),
             Method::Orx => orx(fs, work, pool, chunk_size),
             #[cfg(feature = "experimental")]
             Method::OrxQueue => orx_queue(fs, work, pool, chunk_size),

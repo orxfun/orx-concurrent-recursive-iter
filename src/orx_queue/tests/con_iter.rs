@@ -58,7 +58,7 @@ where
     let queue = ConcurrentQueue::from(vec(3, 20));
 
     let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         let children = (0..i).map(|x| x.to_string());
         q.extend(children);
     };
@@ -93,7 +93,7 @@ where
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
     let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         let children = (0..i).map(|x| x.to_string());
         q.extend(children);
     };
@@ -127,7 +127,7 @@ where
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
     let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         let children = (0..i).map(|x| x.to_string());
         q.extend(children);
     };
@@ -187,7 +187,7 @@ where
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
     let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         let children = (0..i).map(|x| x.to_string());
         q.extend(children);
     };
@@ -218,7 +218,7 @@ where
 {
     let queue = ConcurrentQueue::from(vec(0, 20));
     let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         let children = (0..i).map(|x| x.to_string());
         q.extend(children);
     };

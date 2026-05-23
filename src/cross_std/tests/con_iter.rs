@@ -32,7 +32,7 @@ fn vec(n: usize) -> Vec<String> {
 fn basic_iter() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(3), extend, None, None);
@@ -61,7 +61,7 @@ fn basic_iter() {
 fn basic_iter_with_idx() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(3), extend, None, Some(3));
@@ -90,7 +90,7 @@ fn basic_iter_with_idx() {
 fn size_hint() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(3), extend, None, Some(4));
@@ -145,7 +145,7 @@ fn size_hint() {
 fn size_hint_exact() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(3), extend, Some(14), None);
@@ -200,7 +200,7 @@ fn size_hint_exact() {
 fn size_hint_skip_to_end() {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(3), extend, None, None);
@@ -226,7 +226,7 @@ fn size_hint_skip_to_end() {
 #[test_matrix([1, 2, 4])]
 fn empty(nt: usize) {
     let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
+        let i: usize = s.parse().expect("must succeed");
         (0..i).map(|x| x.to_string())
     };
     let iter = ConcurrentRecursiveIterCrossbeamStd::new(vec(0), extend, None, Some(8));
@@ -249,7 +249,7 @@ fn empty(nt: usize) {
     });
 }
 
-fn extend<'a, 'b>(node: &'a &'b Node) -> core::slice::Iter<'b, Node> {
+fn extend<'a>(node: &&'a Node) -> core::slice::Iter<'a, Node> {
     node.children.iter()
 }
 
