@@ -10,7 +10,6 @@ use orx_concurrent_iter::ConcurrentIter;
 pub struct ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -25,7 +24,6 @@ where
 impl<I, E> ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -157,7 +155,6 @@ where
 impl<I, E> ConcurrentIter for ConcurrentRecursiveIterCrossbeamNoStd<I, E>
 where
     I: IntoIterator,
-    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {

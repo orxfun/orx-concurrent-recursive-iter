@@ -4,7 +4,6 @@ use orx_concurrent_iter::ChunkPuller;
 pub struct DynChunkPuller<'a, I, E>
 where
     I: IntoIterator,
-    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
@@ -17,7 +16,6 @@ where
 impl<'a, I, E> ChunkPuller for DynChunkPuller<'a, I, E>
 where
     I: IntoIterator,
-    I::IntoIter: Iterator,
     I::Item: Send,
     E: Fn(&I::Item) -> I + Send + Sync,
 {
