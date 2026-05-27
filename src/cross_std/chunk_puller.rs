@@ -14,6 +14,14 @@ where
     pub(super) chunk_buffer: Vec<I::Item>,
 }
 
+impl<'a, I, E> DynChunkPuller<'a, I, E>
+where
+    I: IntoIterator,
+    I::Item: Send,
+    E: Fn(&I::Item) -> I + Send + Sync,
+{
+}
+
 impl<'a, I, E> ChunkPuller for DynChunkPuller<'a, I, E>
 where
     I: IntoIterator,
@@ -29,6 +37,12 @@ where
 
     fn chunk_size(&self) -> usize {
         self.chunk_size
+    }
+
+    fn resize_for_chunk_size(&mut self, new_chunk_size: usize) {
+        let additional_cap = new_chunk_size.saturating_sub(self.chunk_buffer.len());
+        self.chunk_buffer.reserve(additional_cap);
+        self.chunk_size = new_chunk_size;
     }
 
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
