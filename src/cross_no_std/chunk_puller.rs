@@ -30,6 +30,12 @@ where
         self.chunk_size
     }
 
+    fn resize_for_chunk_size(&mut self, new_chunk_size: usize) {
+        let additional_cap = new_chunk_size.saturating_sub(self.chunk_buffer.len());
+        self.chunk_buffer.reserve(additional_cap);
+        self.chunk_size = new_chunk_size;
+    }
+
     fn pull(&mut self) -> Option<Self::Chunk<'_>> {
         ConcurrentRecursiveIterCrossbeamNoStd::pull_batch_into_impl(
             &self.iter.queue,
