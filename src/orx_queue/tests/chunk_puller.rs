@@ -8,6 +8,7 @@ fn vec_strings(n: usize) -> Vec<String> {
     (0..n).map(|i| i.to_string()).collect()
 }
 
+#[allow(clippy::ptr_arg)]
 fn extend_fn(s: &String, queue: &Queue<String, DefaultConPinnedVec<String>>) {
     let num: usize = s.parse().unwrap_or(0);
     for i in 0..num {

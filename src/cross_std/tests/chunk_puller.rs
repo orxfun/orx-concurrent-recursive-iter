@@ -10,6 +10,7 @@ fn vec_strings(n: usize) -> Vec<String> {
     (0..n).map(|i| i.to_string()).collect()
 }
 
+#[allow(clippy::ptr_arg)]
 fn extend_fn(s: &String) -> Vec<String> {
     let num: usize = s.parse().unwrap_or(0);
     (0..num).map(|i| i.to_string()).collect()
