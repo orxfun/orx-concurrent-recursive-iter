@@ -53,8 +53,10 @@ jobs:
     - name: Clippy
       run: cargo clippy -- -D warnings --verbose
 
+    # Use no-default-features for Miri/NoStd: default enables `std`, which pulls
+    # crossbeam-deque/crossbeam-epoch and currently triggers an upstream Miri UB report.
     - name: Miri
-      run: cargo +nightly miri test --lib --bins --tests --verbose
+      run: cargo +nightly miri test --lib --tests --no-default-features --verbose
 
     - name: NoStd
       run: cargo +nightly no-std-check --no-default-features
