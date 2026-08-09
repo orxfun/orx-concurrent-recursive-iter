@@ -1,5 +1,6 @@
-use crate::{
-    con_iter::ConcurrentRecursiveIter,
+use crate::orx_queue::{
+    con_iter::ConcurrentRecursiveIterQueue,
+    queue::Queue,
     tests::node::{Node, Roots},
 };
 use alloc::{
@@ -55,11 +56,14 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
-        (0..i).map(|x| x.to_string())
+
+    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+        let i: usize = s.parse().expect("must succeed");
+        let children = (0..i).map(|x| x.to_string());
+        q.extend(children);
     };
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend));
 
     assert_eq!(iter.next(), Some(1.to_string()));
     assert_eq!(iter.next(), Some(2.to_string()));
@@ -88,11 +92,12 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
-        (0..i).map(|x| x.to_string())
+    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+        let i: usize = s.parse().expect("must succeed");
+        let children = (0..i).map(|x| x.to_string());
+        q.extend(children);
     };
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend));
 
     assert_eq!(iter.next_with_idx(), Some((0, 1.to_string())));
     assert_eq!(iter.next_with_idx(), Some((1, 2.to_string())));
@@ -121,11 +126,12 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
-        (0..i).map(|x| x.to_string())
+    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+        let i: usize = s.parse().expect("must succeed");
+        let children = (0..i).map(|x| x.to_string());
+        q.extend(children);
     };
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend));
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -180,11 +186,12 @@ where
 {
     // 1 2 3 0 0 1 0 1 2 0 0 0 1 0
     let queue = ConcurrentQueue::from(vec(3, 20));
-    let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
-        (0..i).map(|x| x.to_string())
+    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+        let i: usize = s.parse().expect("must succeed");
+        let children = (0..i).map(|x| x.to_string());
+        q.extend(children);
     };
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend));
 
     // 1 2 3
     assert_eq!(iter.size_hint(), (3, None));
@@ -210,11 +217,12 @@ where
     P: IntoConcurrentPinnedVec<String>,
 {
     let queue = ConcurrentQueue::from(vec(0, 20));
-    let extend = |s: &String| {
-        let i: usize = s.parse().unwrap();
-        (0..i).map(|x| x.to_string())
+    let extend = |s: &String, q: &Queue<String, P::ConPinnedVec>| {
+        let i: usize = s.parse().expect("must succeed");
+        let children = (0..i).map(|x| x.to_string());
+        q.extend(children);
     };
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend));
 
     std::thread::scope(|s| {
         for _ in 0..nt {
@@ -234,8 +242,11 @@ where
     });
 }
 
-fn extend<'a, 'b>(node: &'a &'b Node) -> &'b [Node] {
-    &node.children
+fn extend<'a, 'b, P>(node: &'a &'b Node, queue: &Queue<&'b Node, P::ConPinnedVec>)
+where
+    P: IntoConcurrentPinnedVec<&'b Node>,
+{
+    queue.extend(&node.children);
 }
 
 fn assert_eq(roots: &Roots, bag: ConcurrentBag<&Node>) {
@@ -285,7 +296,7 @@ fn next(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -294,7 +305,9 @@ fn next(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 while let Some(x) = iter.next() {
                     _ = iter.size_hint();
@@ -313,7 +326,7 @@ fn next_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_linear_growth_and_fragments_capacity(10, 64);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Linear>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -322,7 +335,9 @@ fn next_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 while let Some(x) = iter.next_with_idx() {
                     _ = iter.size_hint();
@@ -341,7 +356,7 @@ fn item_puller(n: usize, nt: usize) {
     let vec = FixedVec::new(roots.num_nodes() + 10);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<FixedVec<_>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -350,7 +365,9 @@ fn item_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.item_puller() {
                     _ = iter.size_hint();
@@ -369,7 +386,7 @@ fn item_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -378,7 +395,9 @@ fn item_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.item_puller_with_idx() {
                     _ = iter.size_hint();
@@ -397,7 +416,7 @@ fn chunk_puller(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -406,7 +425,9 @@ fn chunk_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 let mut puller = iter.chunk_puller(7);
 
@@ -429,7 +450,7 @@ fn chunk_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -438,7 +459,9 @@ fn chunk_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 let mut puller = iter.chunk_puller(7);
 
@@ -461,7 +484,7 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
     let vec = FixedVec::new(roots.num_nodes() + 10);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<FixedVec<_>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -470,7 +493,9 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.chunk_puller(7).flattened() {
                     bag.push(x);
@@ -488,7 +513,7 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);
@@ -497,7 +522,9 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.chunk_puller(7).flattened_with_idx() {
                     bag.push(x);
@@ -515,7 +542,7 @@ fn skip_to_end(n: usize, nt: usize) {
     let vec = SplitVec::with_linear_growth_and_fragments_capacity(10, 128);
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Linear>>));
 
     let until = n / 2;
 
@@ -579,7 +606,7 @@ fn into_seq_iter(n: usize, nt: usize, until: usize) {
     let vec = SplitVec::with_doubling_growth_and_max_concurrent_capacity();
     let queue = ConcurrentQueue::from(vec);
     queue.extend(roots.as_slice());
-    let iter = ConcurrentRecursiveIter::from((extend, queue));
+    let iter = ConcurrentRecursiveIterQueue::from((queue, extend::<SplitVec<_, Doubling>>));
 
     let bag = ConcurrentBag::new();
     let num_spawned = AtomicUsize::new(0);

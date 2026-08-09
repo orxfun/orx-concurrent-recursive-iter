@@ -1,31 +1,28 @@
-use orx_concurrent_queue::{ConcurrentQueue, iter::QueueIterOwned};
+use crate::orx_queue::queue::Queue;
+use orx_concurrent_queue::iter::QueueIterOwned;
 use orx_pinned_vec::ConcurrentPinnedVec;
 
-pub struct DynChunk<'a, T, E, I, P>
+pub struct DynChunk<'a, T, E, P>
 where
     T: Send,
-    E: Fn(&T) -> I + Sync,
-    I: IntoIterator<Item = T>,
-    I::IntoIter: ExactSizeIterator,
+    E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
 {
     chunk: QueueIterOwned<'a, T, P>,
     extend: &'a E,
-    queue: &'a ConcurrentQueue<T, P>,
+    queue: Queue<'a, T, P>,
 }
 
-impl<'a, T, E, I, P> DynChunk<'a, T, E, I, P>
+impl<'a, T, E, P> DynChunk<'a, T, E, P>
 where
     T: Send,
-    E: Fn(&T) -> I + Sync,
-    I: IntoIterator<Item = T>,
-    I::IntoIter: ExactSizeIterator,
+    E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
 {
     pub(super) fn new(
         chunk: QueueIterOwned<'a, T, P>,
         extend: &'a E,
-        queue: &'a ConcurrentQueue<T, P>,
+        queue: Queue<'a, T, P>,
     ) -> Self {
         Self {
             chunk,
@@ -35,20 +32,19 @@ where
     }
 }
 
-impl<'a, T, E, I, P> Iterator for DynChunk<'a, T, E, I, P>
+impl<'a, T, E, P> Iterator for DynChunk<'a, T, E, P>
 where
     T: Send,
-    E: Fn(&T) -> I + Sync,
-    I: IntoIterator<Item = T>,
-    I::IntoIter: ExactSizeIterator,
+    E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
 {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.chunk.next()?;
-        let children = (self.extend)(&n);
-        self.queue.extend(children);
+        (self.extend)(&n, &self.queue);
+        // let children = (self.extend)(&n);
+        // self.queue.extend(children);
         Some(n)
     }
 
@@ -59,12 +55,10 @@ where
     }
 }
 
-impl<'a, T, E, I, P> ExactSizeIterator for DynChunk<'a, T, E, I, P>
+impl<'a, T, E, P> ExactSizeIterator for DynChunk<'a, T, E, P>
 where
     T: Send,
-    E: Fn(&T) -> I + Sync,
-    I: IntoIterator<Item = T>,
-    I::IntoIter: ExactSizeIterator,
+    E: Fn(&T, &Queue<T, P>) + Sync,
     P: ConcurrentPinnedVec<T>,
 {
     #[inline(always)]

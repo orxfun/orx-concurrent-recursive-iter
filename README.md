@@ -6,20 +6,28 @@
 
 A concurrent iterator ([ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html)) that can be extended recursively by each of its items.
 
-> This is a **no-std** crate.
+> This crate is **no-std compatible** and uses a feature-selected backend.
+>
+> * Default (`std`) backend: crossbeam-deque work stealing.
+> * `no_std` backend: crossbeam-queue `SegQueue`.
 
 ## Concurrent Recursive Iter
 
-[`ConcurrentRecursiveIter`](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_recursive_iter/struct.ConcurrentRecursiveIter.html) is a [ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html) implementation which
+[`ConcurrentRecursiveIter`](https://docs.rs/orx-concurrent-recursive-iter/latest/orx_concurrent_recursive_iter/type.ConcurrentRecursiveIter.html) is a [ConcurrentIter](https://docs.rs/orx-concurrent-iter/latest/orx_concurrent_iter/trait.ConcurrentIter.html) implementation which
 
 * naturally shrinks as we iterate,
 * but can also grow as it allows to add new items to the iterator, during iteration.
 
-Assume the item type of the iterator is `T`. Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I` where `I: IntoIterator<Item = T>` with a known length.
+Assume the item type of the iterator is `T`. Growth of the iterator is expressed by the `extend: E` function with the signature `Fn(&T) -> I` where `I: IntoIterator<Item = T>`.
+
+When the returned iterator has an exact size hint, the implementation uses this information as a fast path for pending-item accounting.
 
 In other words, for each element `e` pulled from the iterator, the iterator internally calls `extend(&e)` before returning it to the caller. All elements included in the iterator that `extend` returned are added to the end of the concurrent iterator, to be pulled later on.
 
-> The recursive concurrent iterator internally uses a [`ConcurrentQueue`](https://docs.rs/orx-concurrent-queue/latest/orx_concurrent_queue/struct.ConcurrentQueue.html) which allows for both concurrent push / extend and pop / pull operations.
+> Backend details:
+>
+> * `std` feature (default): crossbeam-deque injector + worker-stealer work stealing.
+> * without `std`: crossbeam-queue `SegQueue`.
 
 ### A simple example, extending by 0 or 1 elements
 
@@ -31,13 +39,9 @@ Growth is defined by the `extend` function. For every element `x` pulled from th
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1, 2];
-let extend = |x: &usize, queue: &Queue<usize>| {
-    if *x < 1000 {
-        queue.push(x * 10);
-    }
-};
+let extend = |x: &usize| (*x < 1000).then_some(x * 10);
 
-let iter = ConcurrentRecursiveIter::new(initial, extend);
+let iter = ConcurrentRecursiveIter::new(initial, extend, None, None);
 
 let mut collected = vec![];
 while let Some(x) = iter.next() {
@@ -72,10 +76,8 @@ The following is again a simple and sequential example, except that this time ea
 use orx_concurrent_recursive_iter::*;
 
 let initial = [1];
-let extend = |x: &usize, queue: &Queue<usize>| if *x < 100 {
-    queue.extend([x * 10, x * 20]);
-};
-let iter = ConcurrentRecursiveIter::new(initial, extend);
+let extend = |x: &usize| (*x < 100).then_some([x * 10, x * 20]).into_iter().flatten();
+let iter = ConcurrentRecursiveIter::new(initial, extend, None, None);
 
 let collected: Vec<_> = iter.item_puller().collect();
 assert_eq!(collected, vec![1, 10, 20, 100, 200, 200, 400]);
@@ -106,7 +108,7 @@ This allows us to `process` each of the 177 nodes concurrently.
 
 ```rust
 use orx_concurrent_recursive_iter::*;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -133,16 +135,11 @@ fn process(node_value: u64) {
     std::thread::sleep(std::time::Duration::from_millis(node_value));
 }
 
-// this defines how the iterator must extend:
-// each node drawn from the iterator adds its children to the end of the iterator
-fn extend<'a, 'b>(node: &'a &'b Node, queue: &Queue<&'b Node>) {
-    queue.extend(&node.children);
-}
-
 // initiate iter with a single element, `root`
 // however, the iterator will `extend` on the fly as we keep drawing its elements
 let root = Node::new(&mut ChaCha8Rng::seed_from_u64(42), 70);
-let iter = ConcurrentRecursiveIter::new([&root], extend);
+let iter =
+    ConcurrentRecursiveIter::new([&root], |node: &&Node| node.children.iter(), None, None);
 
 let num_threads = 8;
 let num_spawned = AtomicUsize::new(0);
@@ -167,6 +164,17 @@ std::thread::scope(|s| {
 });
 
 assert_eq!(num_processed_nodes.into_inner(), 177);
+```
+
+## Features
+
+* `std` (default): enables the `std` backend built on `crossbeam-deque`.
+* `experimental`: enables queue-based experimental APIs such as `ConcurrentRecursiveIterQueue` and `Queue`.
+
+Build without default features to use the no-std backend:
+
+```bash
+cargo build --no-default-features
 ```
 
 ## Contributing

@@ -10,24 +10,25 @@
     clippy::missing_panics_doc,
     clippy::todo
 )]
+#![cfg_attr(test, allow(clippy::unwrap_in_result, clippy::unwrap_used))]
 #![no_std]
 
-#[cfg(test)]
 extern crate alloc;
-#[cfg(test)]
+
+#[cfg(any(test, feature = "std"))]
 extern crate std;
 
-#[cfg(test)]
-mod tests;
+#[cfg(not(feature = "std"))]
+mod cross_no_std;
+#[cfg(feature = "std")]
+mod cross_std;
 
-mod chunk;
-mod chunk_puller;
+#[cfg(feature = "experimental")]
+mod orx_queue;
+
 mod con_iter;
-mod dyn_seq_queue;
-mod queue;
-
-// re-import
-pub use orx_concurrent_iter::*;
 
 pub use con_iter::ConcurrentRecursiveIter;
-pub use queue::Queue;
+pub use orx_concurrent_iter::*;
+#[cfg(feature = "experimental")]
+pub use orx_queue::{ConcurrentRecursiveIterQueue, Queue};
