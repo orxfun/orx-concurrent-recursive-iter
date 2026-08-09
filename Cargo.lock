@@ -105,6 +105,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "chacha20"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "rand_core",
+]
+
+[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -133,9 +144,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.1"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ddb117e43bbf7dacf0a4190fef4d345b9bad68dfc649cb349e7d17d28428e51"
+checksum = "473c7e07f409a8d772161724aa8db6a765a2532a70f9667eeb7b49d3d02fbdca"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -143,9 +154,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.0"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "714a53001bf66416adb0e2ef5ac857140e7dc3a0c48fb28b2f10762fc4b5069f"
+checksum = "7b48fea5a88e9ae728a2dcbedbfc0e730f7d60da42e1cb049a83c9fb8b789889"
 dependencies = [
  "anstream",
  "anstyle",
@@ -155,14 +166,14 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.1"
+version = "4.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ce8604710f6733aa641a2b3731eaa1e8b3d9973d5e3565da11800813f997a9"
+checksum = "d012d2b9d65aca7f18f4d9878a045bc17899bba951561ba5ec3c2ba1eed9a061"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -192,6 +203,15 @@ name = "colorize"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc17e449bc7854c50b943d113a98bc0e01dc6585d2c66eaa09ca645ebd8a7e62"
+
+[[package]]
+name = "cpufeatures"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "criterion"
@@ -228,9 +248,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
+checksum = "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb"
 dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
@@ -247,9 +267,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
+checksum = "803d13fb3b09d88be9f4dbc29062c66b19bf7170867ceb746d2a8689bf6c7a26"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -289,7 +309,7 @@ checksum = "685adfa4d6f3d765a26bc5dbc936577de9abf756c1feeb3089b01dd395034842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -300,14 +320,14 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "getrandom"
-version = "0.3.4"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
  "libc",
  "r-efi",
- "wasip2",
+ "rand_core",
 ]
 
 [[package]]
@@ -384,7 +404,8 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "orx-concurrent-bag"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-concurrent-bag?branch=v4#d65320798f6e721e9740f1a4cad7f8e47ddef9a8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488bbb9629a1a3970a7cd0a11b2071dd395963e8f3330738cc7d7b23a03cf500"
 dependencies = [
  "orx-fixed-vec",
  "orx-pinned-concurrent-col",
@@ -396,7 +417,8 @@ dependencies = [
 [[package]]
 name = "orx-concurrent-iter"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-concurrent-iter/?branch=v4#9a8b371c69ee47af91cecb9387d33c34f1ecd3c7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1065464bad75e3c50bb9efdbe527a6cd31106b2755a427e7903ea9be1b0e8b01"
 dependencies = [
  "orx-iterable",
  "orx-pseudo-default",
@@ -405,7 +427,8 @@ dependencies = [
 [[package]]
 name = "orx-concurrent-queue"
 version = "2.0.0"
-source = "git+https://github.com/orxfun/orx-concurrent-queue?branch=v2#83bf13e8f48e75d014ab42efabe221d5948c97e6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a4d45a7695e9429663b4d7897b1890126b1ee5e2cfbf5362b16fd8e8687fe5c"
 dependencies = [
  "orx-fixed-vec",
  "orx-pinned-vec",
@@ -438,7 +461,8 @@ dependencies = [
 [[package]]
 name = "orx-criterion"
 version = "1.0.0"
-source = "git+https://github.com/orxfun/orx-criterion#578bf206e17d7163b5affd695f32616f4bc4f563"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbcda1fcea89f427a883f72d23437858323589ec631c6c5bffb220200219a263"
 dependencies = [
  "cli-table",
  "colorize",
@@ -449,7 +473,8 @@ dependencies = [
 [[package]]
 name = "orx-fixed-vec"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-fixed-vec?branch=v4#7f5b524ea3d38f1930d34acf49d615310e228c2c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e762d40ef747b0d708432b53c601ef0f1adf5a13df988e9ab2b32db1afcc898"
 dependencies = [
  "orx-concurrent-iter",
  "orx-iterable",
@@ -469,7 +494,8 @@ dependencies = [
 [[package]]
 name = "orx-pinned-concurrent-col"
 version = "3.0.0"
-source = "git+https://github.com/orxfun/orx-pinned-concurrent-col?branch=v3#cb754f485fcd90ac5b07f3d34718ca33723d043c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a0b7e69cd26c4b73a948ef4f0522fa6e3a364cbcb23a5dfb492e12c2146c9c"
 dependencies = [
  "orx-fixed-vec",
  "orx-pinned-vec",
@@ -480,7 +506,8 @@ dependencies = [
 [[package]]
 name = "orx-pinned-vec"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-pinned-vec?branch=v4#cf565086f96aeda177f4d5b97159d5d9af1e2d2d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58a569e70ec8007642e00d8e6218fd610fa6e03fb746716aeb974c91e6a5cfa1"
 dependencies = [
  "orx-iterable",
  "orx-pseudo-default",
@@ -501,7 +528,8 @@ checksum = "67a8e35dfe18921e475b9861266fd58a5ecfd681161f242d24a9e2d1e07fbc28"
 [[package]]
 name = "orx-split-vec"
 version = "4.0.0"
-source = "git+https://github.com/orxfun/orx-split-vec?branch=v4#fdb6640053edcc0df8faae5aa4d5a8bb435ed50c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30791483a86986068b64e2e4935047510d4ae45b4b568fd9735a751fcb331f37"
 dependencies = [
  "orx-concurrent-iter",
  "orx-iterable",
@@ -548,25 +576,26 @@ dependencies = [
 
 [[package]]
 name = "r-efi"
-version = "5.3.0"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.9.4"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
+checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
 dependencies = [
- "rand_chacha",
+ "chacha20",
+ "getrandom",
  "rand_core",
 ]
 
 [[package]]
 name = "rand_chacha"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
 dependencies = [
  "ppv-lite86",
  "rand_core",
@@ -574,12 +603,9 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
-version = "0.9.5"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
-dependencies = [
- "getrandom",
-]
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "rayon"
@@ -666,7 +692,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -706,6 +732,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -732,7 +769,7 @@ dependencies = [
  "cfg-if",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -743,7 +780,7 @@ checksum = "5c89e72a01ed4c579669add59014b9a524d609c0c88c6a585ce37485879f6ffb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
  "test-case-core",
 ]
 
@@ -789,15 +826,6 @@ checksum = "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b"
 dependencies = [
  "same-file",
  "winapi-util",
-]
-
-[[package]]
-name = "wasip2"
-version = "1.0.3+wasi-0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20064672db26d7cdc89c7798c48a0fdfac8213434a1186e5ef29fd560ae223d6"
-dependencies = [
- "wit-bindgen",
 ]
 
 [[package]]
@@ -847,12 +875,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wit-bindgen"
-version = "0.57.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
-
-[[package]]
 name = "zerocopy"
 version = "0.8.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -869,7 +891,7 @@ checksum = "70e3cd084b1788766f53af483dd21f93881ff30d7320490ec3ef7526d203bad4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]

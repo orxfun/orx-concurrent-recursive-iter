@@ -308,7 +308,9 @@ fn next(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 while let Some(x) = iter.next() {
                     _ = iter.size_hint();
@@ -334,7 +336,9 @@ fn next_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 while let Some(x) = iter.next_with_idx() {
                     _ = iter.size_hint();
@@ -360,7 +364,9 @@ fn item_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.item_puller() {
                     _ = iter.size_hint();
@@ -386,7 +392,9 @@ fn item_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.item_puller_with_idx() {
                     _ = iter.size_hint();
@@ -412,7 +420,9 @@ fn chunk_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 let mut puller = iter.chunk_puller(7);
 
@@ -442,7 +452,9 @@ fn chunk_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 let mut puller = iter.chunk_puller(7);
 
@@ -472,7 +484,9 @@ fn flattened_chunk_puller(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.chunk_puller(7).flattened() {
                     bag.push(x);
@@ -497,7 +511,9 @@ fn flattened_chunk_puller_with_idx(n: usize, nt: usize) {
             s.spawn(|| {
                 // allow all threads to be spawned
                 _ = num_spawned.fetch_add(1, Ordering::Relaxed);
-                while num_spawned.load(Ordering::Relaxed) < nt {}
+                while num_spawned.load(Ordering::Relaxed) < nt {
+                    core::hint::spin_loop()
+                }
 
                 for x in iter.chunk_puller(7).flattened_with_idx() {
                     bag.push(x);

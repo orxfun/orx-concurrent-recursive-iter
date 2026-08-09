@@ -108,7 +108,7 @@ This allows us to `process` each of the 177 nodes concurrently.
 
 ```rust
 use orx_concurrent_recursive_iter::*;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

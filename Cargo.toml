@@ -10,28 +10,28 @@ keywords = ["concurrency", "iterator", "iteration", "recursive", "parallelism"]
 categories = ["data-structures", "concurrency", "rust-patterns", "no-std"]
 
 [dependencies]
-crossbeam-deque = { version = "0.8.6", default-features = false, optional = true, features = [
+crossbeam-deque = { version = "0.8.7", default-features = false, optional = true, features = [
     "std",
 ] }
-crossbeam-queue = { version = "0.3.12", default-features = false, features = [
+crossbeam-queue = { version = "0.3.13", default-features = false, features = [
     "alloc",
 ] }
-orx-concurrent-iter = { git = "https://github.com/orxfun/orx-concurrent-iter/", branch = "v4" }
+orx-concurrent-iter = { version = "4.0.0", default-features = false }
 orx-pseudo-default = { version = "2.1.0", default-features = false, optional = true }
-orx-pinned-vec = { git = "https://github.com/orxfun/orx-pinned-vec", branch = "v4", default-features = false, optional = true }
-orx-fixed-vec = { git = "https://github.com/orxfun/orx-fixed-vec", branch = "v4", default-features = false, optional = true }
-orx-split-vec = { git = "https://github.com/orxfun/orx-split-vec", branch = "v4", default-features = false, optional = true }
-orx-concurrent-queue = { git = "https://github.com/orxfun/orx-concurrent-queue", branch = "v2", default-features = false, optional = true }
+orx-pinned-vec = { version = "4.0.0", default-features = false, optional = true }
+orx-fixed-vec = { version = "4.0.0", default-features = false, optional = true }
+orx-split-vec = { version = "4.0.0", default-features = false, optional = true }
+orx-concurrent-queue = { version = "2.0.0", default-features = false, optional = true }
 
 [dev-dependencies]
-clap = { version = "4.5.39", features = ["derive"] }
-criterion = { version = "0.8.0", default-features = false }
+clap = { version = "4.6.6", features = ["derive"] }
+criterion = { version = "0.8.2", default-features = false }
 enum-iterator = { version = "2.3.0", default-features = false }
-orx-concurrent-bag = { git = "https://github.com/orxfun/orx-concurrent-bag", branch = "v4", default-features = false }
-orx-criterion = { git = "https://github.com/orxfun/orx-criterion" }
-rayon = { version = "1.11.0" }
-rand_chacha = { version = "0.9.0" }
-rand = { version = "0.9.2" }
+orx-concurrent-bag = { version = "4.0.0", default-features = false }
+orx-criterion = { version = "1.0.0" }
+rayon = { version = "1.12.0" }
+rand_chacha = { version = "0.10.0" }
+rand = { version = "0.10.2" }
 test-case = { version = "3.3.1" }
 
 [features]

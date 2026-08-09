@@ -40,7 +40,7 @@ use orx_split_vec::SplitVec;
 /// use orx_concurrent_recursive_iter::*;
 /// use orx_concurrent_iter::ConcurrentIter;
 /// use std::sync::atomic::{AtomicUsize, Ordering};
-/// use rand::{Rng, SeedableRng};
+/// use rand::{Rng, RngExt, SeedableRng};
 /// use rand_chacha::ChaCha8Rng;
 ///
 /// struct Node {
